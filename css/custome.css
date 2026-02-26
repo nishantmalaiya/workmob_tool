@@ -1,0 +1,59 @@
+.storythumb {
+    max-width: 100px;
+    max-height: 45px
+}
+
+.storyHr {
+    width: 100%;
+    margin-top: 0px;
+    margin-bottom: 0px;
+    border: 0;
+    border-top: 1px solid #101010;
+}
+
+.multiple-select {
+    padding-left: 0px;
+    padding-right: 0px;
+    padding-top: 3px;
+    padding-bottom: 0px;
+}
+
+    .multiple-select li label span {
+        padding-left: 10px;
+    }
+
+
+    .body-audio {
+        background-color: #fafce0 !important;
+    }
+    .body-gyan {
+        background-color: #fcc1c0 !important;
+    }
+    .body-hope {
+        background-color: #0c8880 !important;
+    }
+    .body-namaste {
+        background-color: #e093ed !important;
+    }
+    .body-promotion {
+        background-color: #fbaa4d85 !important;
+    }
+    .body-product {
+        background-color: #9efb4d85 !important;
+    }
+
+.container {
+    width: 100%;
+    padding: 0 30px;
+}
+
+.ml-15 {
+    margin-left: 15px;
+}
+hr {
+    margin-top: 30px;
+    margin-bottom: 20px;
+    border: 0;
+    border-top: 1px solid #c9c7c7;
+    width: 100%
+}

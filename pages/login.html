@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Login Page</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="../css/bootstrap.min.css" />
+    <link rel="stylesheet" href="../css/Loader.css" />
+    <link rel="stylesheet" href="../css/custome.css" />
+</head>
+
+<body>
+    <div class="container">
+
+        <button id="btnExit" type="button" class="close" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+        <br />
+        <img src="../images/Wlogo.png" alt="Workmob" class="img-fluid text-center"
+            style="max-width: 70%; padding-top:5px; padding-bottom: 5px; padding-left: 80px; text-align:center;">
+        <br>
+        <br>
+        <div class="form-group">
+            <label for="usr">User Name:</label>
+            <input type="text" class="form-control" id="txtUsr" />
+        </div>
+        <div class="form-group">
+            <label for="pwd">Password:</label>
+            <input type="password" class="form-control" id="txtPwd" />
+        </div>
+        <button class="btn btn-default" id="btn-login">Login</button>
+        <label id="lbl" style="color:red;"></label>
+    </div>
+    <script>
+        window.$ = window.jQuery = require("../jquery-3.5.1.min.js");
+    </script>
+    <script type="text/javascript" src="../bootstrap.min.js"></script>
+    <script>
+        let fs = require("fs");
+        let filename = "authorities";
+        const ipc = require("electron").ipcRenderer;
+        const axios = require("axios").default;
+
+        $("#btnExit").on("click", async () => {
+            ipc.sendSync("entry-accepted", "ExitApp");
+            return false;
+        });
+
+        $('#txtUsr').on('keypress', function (e) {
+            if (e.which === 13) {
+                $("#btn-login").click();
+            }
+        });
+
+        $('#txtPwd').on('keypress', function (e) {
+            if (e.which === 13) {
+                $("#btn-login").click();
+            }
+        });
+
+        $("#btn-login").on("click", async () => {
+
+            if ($('#txtUsr').val() == "") {
+                $("#lbl").text("Please enter username");
+                return false;
+            }
+            if ($('#txtPwd').val() == "") {
+                $("#lbl").text("Please enter password");
+                return false;
+            }
+
+            console.log("clicked..");
+
+            const LoginOptions = {
+                EMail: $('#txtUsr').val(),
+                Password: $('#txtPwd').val(),
+                AppId: "F5466F5A-104F-4F9A-A5CE-A7D1DD",
+            };
+            const options = {
+                method: "POST",
+                url: `https://api.arccrm.com/api/SignIn/AppSignIn/validate`,
+                //url: `https://localhost:44370/api/SignIn/AppSignIn/validate`,
+                headers: { "content-type": "application/json" },
+                data: JSON.stringify(LoginOptions),
+            };
+            try {
+                //const response = await axios(options);
+                //console.log(response.data);
+               // if (response.data.Authentication_status == "true") {                
+                if ($('#txtUsr').val() == "Admin" && $('#txtPwd').val()=="Admin@88") {
+                    ipc.sendSync("entry-accepted", "ping");
+                } else {
+                    $("#lbl").text("Username or password is incorrect");
+                }
+            } catch (error) {
+                $("#lbl").text("Username or password is incorrect");
+            }
+            return false;
+        });
+    </script>
+</body>
+
+</html>

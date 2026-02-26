@@ -1,0 +1,59 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Json File Editor Tool</title>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="./jquery-3.5.1.min.js"></script>
+</head>
+<body style="background-color: rgb(224, 252, 243);">
+    <div class="col-md-12">
+        <h1>Read Write Json</h1>
+        <div class="col-md-6">
+            <form>
+                <div class="form-group">
+                    <label for="exampleInputEmail1">Current Json</label>
+                    <input type="text" class="form-control" id="txtfileName" disabled="disabled">
+                </div>
+                <div class="form-group">
+                    <label for="fileUploader">select Json</label>
+                    <input type="file" class="form-control" id="fileUploader" placeholder="JSON File">
+                </div>
+                <button title="tooltip" type="button" class="btn btn-primary" id="btnUpdateJson">Update JSON</button>
+                <a href="#" download="download" class="btn btn-primary hidden" id="btnDownload">Download</a>
+                <a href="#" data-toggle="tooltip" title="Hooray!">Hover over me</a>
+            </form>
+        </div>
+        <div class="col-md-6">
+            <h4>Converted File List</h4>
+            <table class="table table-bordered table-hover table-striped">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <a id="target" class="btn btn-info">target</a>
+                <tbody id='tblConvertedJson'>
+                </tbody>
+            </table>
+        </div>
+        <div class="clearfix"></div>
+        <div class="col-md-12">
+            <div id="divJson" style="overflow: auto; max-height:800px;">
+            </div>
+        </div>
+    </div>
+    <script>
+        console.log('applicatoin')
+    </script>
+    <!-- <script>window.$ = window.jQuery = require('./jquery-3.5.1.min.js');</script> -->
+    <script type="text/javascript" src="./bootstrap.min.css"></script>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1.24.min.js"></script>
+    <script type="text/javascript" src="./Js/BucketConfigurations.js"></script>
+    <script type="text/javascript" src="./index.js"></script>
+</body>
+</html>

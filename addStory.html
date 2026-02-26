@@ -1,0 +1,124 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Add Stories</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src *; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.amazonaws.com">
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/Loader.css">
+    <link href="css/multiple-select.css" rel="stylesheet">
+    <link href="css/select2.css" rel="stylesheet">
+    <link href="css/custome.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/selectize.bootstrap3.min.css"/>
+    
+    <style>
+
+        .customeEditor:empty {
+            border: 1px solid black;
+        }
+
+        .btnFullStory {
+            padding-left: 1px;
+            padding-right: 5px;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        div:focus {
+            background-color: Aqua;
+        }
+
+        .error {
+            background-color: palevioletred;
+        }
+
+        .btnAdd {
+            font-size: small;
+        }
+
+        .column {
+            cursor: move;
+        }
+
+            .column.over {
+                border-top: 2px solid #333;
+            }
+    </style>
+</head>
+<body style="background-color: rgb(224, 252, 243);">
+
+    <div id="loader-wrapper">
+        <div id="loader"></div>
+
+        <!--<div class="loader-section section-left"></div>
+        <div class="loader-section section-right"></div>-->
+
+    </div>
+
+
+    <div class="row col-md-12" id="content">
+        <h3 id="hname" class="col-md-12"></h3>
+
+
+        <div class="clearfix"></div>
+        <div id="divJson">
+
+        </div>
+        <hr class="col-md-12" />
+        <div class="col-md-11 form-group">
+            <a id="btnHeading" class="btn btn-info btnAdd">Heading</a>
+            <a id="btnParagraph" class="btn btn-info btnAdd">Paragraph</a>
+            <a id="btnQuote" class="btn btn-info btnAdd">Quote</a>
+            <a id="btnQuoteG" class="btn btn-info btnAdd">Quote green</a>
+            <a id="btnQuoteDG" class="btn btn-info btnAdd">Quote dark green</a>
+            <a id="btnQuoteLg" class="btn btn-info btnAdd">Quote light green</a>
+            <a id="btnBulletedList" class="btn btn-info btnAdd">Bulleted list</a>
+            <a id="btnParagraphBold" class="btn btn-info btnAdd">Paragraph bold</a>
+            <a id="btnVideo" class="btn btn-info btnAdd">Video</a>
+            <a id="btnImageLeft" class="btn btn-info btnAdd">Image Url(Left)</a>
+            <a id="btnImageRight" class="btn btn-info btnAdd">Image Url(Right)</a>
+        </div>
+        <div class="col-md-1 form-group">
+            <label>&nbsp;</label>
+            <select id="ddlLanguage">
+                <option value="English">English</option>
+                <option value="Hindi">Hindi</option>
+            </select>
+        </div>
+        <div class="col-md-12 row" id="divExtraField"></div>
+        <div class="col-md-12 row" id="divExtraFieldHindi"></div>
+        <hr class="col-md-12" />
+        <div class="form-group col-md-12 text-center">
+            <label></label>
+            <a id="btnSave" tabindex="2" class="btn btn-success">Save Story</a>
+            <a id="btnCanel" class="btn btn-danger">Cancel</a>
+            <a id="btndelete" class="btn btn-danger">Delete Story</a>
+        </div>
+    </div>
+
+    <script>window.$ = window.jQuery = require('jquery');</script>
+    <script type="text/javascript" src="bootstrap.min.js"></script>
+    <script type="text/javascript" src="Dragdrop.js"></script>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1.24.min.js"></script>
+    <script type="text/javascript" src="Js/BucketConfigurations.js"></script>
+    <script src="js/multiple-select.js"></script>
+    <script src="js/moment.min.js"></script>
+    <!-- <script src="js/select2.full.min.js"></script> -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script> -->
+    
+    <script type="text/javascript" src="addStory.js"></script>
+    <script src="js/selectize.min.js" ></script>
+    <!--<script>
+        $(function () {
+            var tt = setInterval(function () {
+                if ($('#divJson #ddl_ddlcategory').length == 1) {
+                    $('#divJson #ddl_ddlcategory').multipleSelect();
+                    clearInterval(tt);
+                }
+            }, 100);
+
+        });
+    </script>-->
+
+</body>
+</html>

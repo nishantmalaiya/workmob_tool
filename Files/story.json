@@ -1,0 +1,490 @@
+[
+  {
+    "name": "slug",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "slug"
+  },
+  {
+    "name": "storyHeading",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Story Heading"
+  },
+  {
+    "name": "quote",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Main Quote"
+  },
+  {
+    "name": "metaTitle",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Meta Title"
+  },
+  {
+    "name": "metaDesc",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Meta Desc"
+  },
+  {
+    "name": "category",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Category"
+  },
+  {
+    "name": "storyType",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Story Type"
+  },
+  {
+    "name": "storySlug",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Story Slug"
+  },
+  {
+    "name": "thumb",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "thumb"
+  },
+  {
+    "name": "webpthumb",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Webp thumb"
+  },
+  {
+    "name": "full",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Full Image Path"
+  },
+  {
+    "name": "videoThumb",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Video Thumb"
+  },
+  {
+    "name": "mobileThumb",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Mobile Thumb"
+  },
+  {
+    "name": "short_video",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Short Video"
+  },
+  {
+    "name": "short_video_thumb",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Short Video Thumb"
+  },
+  {
+    "name": "videoUrl",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Video Url"
+  },
+  {
+    "name": "video_landscape_thumb",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Video Thumb Landscape"
+  },
+  {
+    "name": "video_url_landscape",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Video Url Landscape"
+  },
+  {
+    "name": "video_format",
+    "class": "col-md-6",
+    "type": "select",
+    "label": "Video Format"
+  },
+  {
+    "name": "story_background_video_url",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Story Background Video Url"
+  },
+  {
+    "name": "promo_video_url",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Promo Video Url"
+  },
+  {
+    "name": "v_tag",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "V Card"
+  },
+  {
+    "name": "yt_Teaser_video_url",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "YT Teaser Video Url"
+  },
+  {
+    "name": "date",
+    "class": "col-md-6 date",
+    "type": "text",
+    "label": "Date"
+  },
+  {
+    "name": "name",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Name"
+  },
+  {
+    "name": "transcript",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Transcript"
+  },
+  {
+    "name": "workmobUserId",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Workmob UserId"
+  },
+  {
+    "name": "workmobUserName",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Workmob User Name"
+  },
+  {
+    "name": "profile_pic",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Profile Pic"
+  },
+  {
+    "name": "industry",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Industry"
+  },
+  {
+    "name": "job_title",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Job Title"
+  },
+  {
+    "name": "company_name",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Company Name"
+  },
+  {
+    "name": "mobileVideoThumb",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Mobile Video Thumb"
+  },
+  {
+    "name": "author",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Author"
+  },
+  {
+    "name": "location",
+    "class": "col-md-6",
+    "type": "select",
+    "label": "Location"
+  }, 
+  {
+    "name": "streetAddress",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Street Address"
+  },
+  {
+    "name": "landmark",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Landmark"
+  },
+  {
+    "name": "",
+    "class": "col-md-12",
+    "type": "hr",
+    "label": ""
+  },
+  {
+    "name": "storyHeading_hindi",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Story Heading Hindi"
+  },
+  {
+    "name": "quote_hindi",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Quote Hindi"
+  },
+  {
+    "name": "mobileThumb_hindi",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Mobile Thumb Hindi"
+  },
+  {
+    "name": "date_hindi",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Date Hindi"
+  },
+  {
+    "name": "name_hindi",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Name Hindi"
+  },
+  {
+    "name": "industry_hindi",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Industry Hindi"
+  },
+  {
+    "name": "company_name_hindi",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Company Name Hindi"
+  },
+  {
+    "name": "location_hindi",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Location in Hindi"
+  },
+  {
+    "name": "is_hindi_translated",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Is Hindi Translated"
+  },
+  {
+    "name": "job_title_hindi",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Job Title Hindi"
+  },
+  {
+    "name": "metaTitle_hindi",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Meta Title Hindi"
+  },
+  {
+    "name": "ddlcategory",
+    "class": "col-md-6",
+    "type": "select",
+    "label": "Master Categories"
+  },
+  {
+    "name": "sub_categories",
+    "class": "col-md-6",
+    "type": "select",
+    "label": "Sub Categories"
+  },
+  {
+    "name": "instructor",
+    "class": "col-md-6",
+    "type": "select",
+    "label": "User Id"
+  },
+  {
+    "name": "tags",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Tags"
+  },
+  {
+    "name": "tags_hindi",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Tags Hindi"
+  },
+  {
+    "name": "organisation",
+    "class": "col-md-6",
+    "type": "select",
+    "label": "Organisation"
+  },
+  {
+    "name": "facebook",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Facebook"
+  },
+  {
+    "name": "youtube",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Youtube"
+  },
+  {
+    "name": "linkedin",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Linkedin"
+  },
+  {
+    "name": "twitter",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Twitter"
+  },
+  {
+    "name": "website",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Website"
+  },
+  {
+    "name": "ebook",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "eBook"
+  },
+  {
+    "name": "intro_video",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Intro Video"
+  },
+  {
+    "name": "instagarm",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Instagarm"
+  },
+  {
+    "name": "whatsapp",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Whatsapp"
+  },
+  {
+    "name": "keywords",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Keywords"
+  },
+  {
+    "name": "view_count",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "View Count"
+  },
+  {
+    "name": "share_count",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Share Count"
+  },
+  {
+    "name": "show_contact",
+    "class": "col-md-6",
+    "type": "checkbox",
+    "label": "Show Contact Detail"
+  },
+  {
+    "name": "user_guid",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "User Guid"
+  },
+  {
+    "name": "consent_received",
+    "class": "col-md-6",
+    "type": "checkbox",
+    "label": "Consent form Received"
+  },
+
+  {
+    "name": "",
+    "class": "col-md-12",
+    "type": "hr",
+    "label": ""
+  },
+  {
+    "name": "storiestop",
+    "class": "col-md-3",
+    "type": "checkbox",
+    "label": "Stories Top"
+  },
+  {
+    "name": "storiestending",
+    "class": "col-md-3",
+    "type": "checkbox",
+    "label": "Trending"
+  },
+  {
+    "name": "storiesMobileHomeScreen",
+    "class": "col-md-3",
+    "type": "checkbox",
+    "label": "Mobile Home Screen"
+  },
+  {
+    "name": "bloghome",
+    "class": "col-md-3",
+    "type": "checkbox",
+    "label": "Blog Home"
+  },
+  {
+    "name": "storieshope",
+    "class": "col-md-3",
+    "type": "checkbox",
+    "label": "Hope"
+  },
+  {
+    "name": "storiesgyan",
+    "class": "col-md-3",
+    "type": "checkbox",
+    "label": "Gyan"
+  },
+  {
+    "name": "storiesnamaste",
+    "class": "col-md-3",
+    "type": "checkbox",
+    "label": "Namaste"
+  } ,
+  {
+    "name": "storiespromotion",
+    "class": "col-md-3",
+    "type": "checkbox",
+    "label": "Promotion"
+  },
+  {
+    "name": "storiesvisiblity",
+    "class": "col-md-3",
+    "type": "checkbox",
+    "label": "Hide"
+  } ,
+  {
+    "name": "storiespriority",
+    "class": "col-md-3",
+    "type": "checkbox",
+    "label": "Priority"
+  } 
+ 
+]

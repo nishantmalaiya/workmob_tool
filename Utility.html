@@ -1,0 +1,48 @@
+﻿<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Json File Editor Tool</title>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/custome.css">
+</head>
+<body style="background-color: rgb(224, 252, 243);">
+    <div class="container">
+        <h1>Read Write Json</h1>
+        <div class="col-md-6">
+            <form>
+                <div class="form-group">
+                    <label for="exampleInputEmail1">Current Json</label>
+                    <input type="text" class="form-control" id="txtfileName" disabled="disabled">
+                </div>
+                <div class="form-group">
+                    <label for="fileUploader">select Json</label>
+                    <input type="file" class="form-control" id="fileUploader" placeholder="JSON File">
+                </div>
+                <button type="button" class="btn btn-primary" id="btnUpdateJson">Update JSON</button>
+                <a href="#" download="download" class="btn btn-primary hidden" id="btnDownload">Download</a>
+            </form>
+        </div>
+        <div class="col-md-6">
+            <h4>Converted File List</h4>
+            <table class="table table-bordered table-hover table-striped">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="tblConvertedJson"><tr> <td>1</td> <td>Arvindtestjson4.json</td> <td><a download="Arvindtestjson4.json" href="C:\WM_Json/Arvindtestjson4.json">Download</a></td> <td><a href="#" onclick="DeleteFile('Arvindtestjson4.json')">Delete</a></td> </tr> <tr> <td>2</td> <td>category.json</td> <td><a download="category.json" href="C:\WM_Json/category.json">Download</a></td> <td><a href="#" onclick="DeleteFile('category.json')">Delete</a></td> </tr> <tr> <td>3</td> <td>config_all.json</td> <td><a download="config_all.json" href="C:\WM_Json/config_all.json">Download</a></td> <td><a href="#" onclick="DeleteFile('config_all.json')">Delete</a></td> </tr> <tr> <td>4</td> <td>financial-services.json</td> <td><a download="financial-services.json" href="C:\WM_Json/financial-services.json">Download</a></td> <td><a href="#" onclick="DeleteFile('financial-services.json')">Delete</a></td> </tr> <tr> <td>5</td> <td>json_tool</td> <td><a download="json_tool" href="C:\WM_Json/json_tool">Download</a></td> <td><a href="#" onclick="DeleteFile('json_tool')">Delete</a></td> </tr> <tr> <td>6</td> <td>kamal.json</td> <td><a download="kamal.json" href="C:\WM_Json/kamal.json">Download</a></td> <td><a href="#" onclick="DeleteFile('kamal.json')">Delete</a></td> </tr> <tr> <td>7</td> <td>seema-shivnani-government-school-english-teacher.json</td> <td><a download="seema-shivnani-government-school-english-teacher.json" href="C:\WM_Json/seema-shivnani-government-school-english-teacher.json">Download</a></td> <td><a href="#" onclick="DeleteFile('seema-shivnani-government-school-english-teacher.json')">Delete</a></td> </tr> <tr> <td>8</td> <td>test1.json</td> <td><a download="test1.json" href="C:\WM_Json/test1.json">Download</a></td> <td><a href="#" onclick="DeleteFile('test1.json')">Delete</a></td> </tr> <tr> <td>9</td> <td>test12.json</td> <td><a download="test12.json" href="C:\WM_Json/test12.json">Download</a></td> <td><a href="#" onclick="DeleteFile('test12.json')">Delete</a></td> </tr> <tr> <td>10</td> <td>top.json</td> <td><a download="top.json" href="C:\WM_Json/top.json">Download</a></td> <td><a href="#" onclick="DeleteFile('top.json')">Delete</a></td> </tr></tbody>
+            </table>
+        </div>
+        <div id="divJson"></div>
+    </div>
+    <script>window.$ = window.jQuery = require('./jquery-3.5.1.min.js');</script>
+    <script type="text/javascript" src="bootstrap.min.js"></script>
+    <script type="text/javascript" src="Utility.js"></script>
+    <script type="text/javascript" src="Js/BucketConfigurations.js"></script>
+
+</body>
+</html>
