@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-var remote = require('electron').remote;
+var remote = require('@electron/remote');
 const dialog = remote.dialog;
 let common = require('../js/config');
 let activePathS3 = common.getS3Path();

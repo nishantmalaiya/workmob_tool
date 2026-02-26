@@ -1,9 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 let pathName = "C:\\WM_Json";
-var remote = require('electron').remote;
-var session = require('electron').remote.session;
-var app = require('electron').remote.app;
+// var remote = require('electron').remote;
+var remote = require('@electron/remote');
+var session = remote.session;
+var app = remote.app;
 var ipcRenderer = require('electron').ipcRenderer;
 var GlobalJSONObj = null;
 let common = require('../js/config');

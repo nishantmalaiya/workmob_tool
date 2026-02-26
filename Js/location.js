@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-var remote = require('electron').remote;
+// var remote = require('electron').remote;
+var remote = require('@electron/remote');
 const dialog = remote.dialog;
 let common = require('../js/config');
 let activePathS3 = common.getS3Path();
@@ -9,10 +10,12 @@ let currentOffset = 0; // Tracks the current offset
 const limit = 100; // Number of records to fetch per request
 let allRecords = []; // To store fetched records
 let isFetching = false; // To prevent concurrent fetches
+let hasMore = false;
+let lastKey = '';
 locationMasterList();
 // async function locationMasterList() {
 //     debugger;
-//     $('body').toggleClass('loaded');
+//     $('body').togghasMoreleClass('loaded');
 //     var meta = await readS3BucketAsync("LocationMaster.json", "");
 
 //     $('body').toggleClass('loaded');
@@ -40,14 +43,13 @@ async function locationMasterList() {
     currentOffset = 0;
     allRecords = [];
     $('#divStory').html('');
-    
+
     fetchAndRenderRecords(currentOffset, limit);
 
     // Attach scroll event listener for lazy loading
     let scrollTimeout;
     $(window).on('scroll', function () {
         if (scrollTimeout) clearTimeout(scrollTimeout);
-
         scrollTimeout = setTimeout(() => {
             if ($(window).scrollTop() + $(window).height() >= $(document).height() - 10) {
                 if (!isFetching) {
@@ -65,16 +67,23 @@ async function fetchAndRenderRecords(offset, limit) {
     $('body').toggleClass('loaded');
 
     try {
-        const meta = await readS3BucketAsync("LocationMaster.json", "");
-        $('body').toggleClass('loaded');
+        // Construct the API URL with offset and limit parameters
+        let apiUrl = {};
+        apiUrl = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations?limit=${limit}&lastKey=${encodeURIComponent(lastKey)}`;
 
-        if (meta.err) {
-            console.log(meta.err);
-            return;
+        // Fetch data from the API
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
         }
 
-        const data = JSON.parse(meta.data);
-        const recordsToAppend = data.slice(offset, offset + limit);
+        const data = await response.json();
+        $('body').toggleClass('loaded');
+
+        // Assuming the API returns an array of records directly
+        hasMore = data.hasMore;
+        lastKey = data.lastKey;
+        const recordsToAppend = data.locations; // The API should return the paginated results
 
         if (recordsToAppend.length > 0) {
             allRecords = [...allRecords, ...recordsToAppend]; // Update all records
@@ -87,9 +96,44 @@ async function fetchAndRenderRecords(offset, limit) {
         $('body').toggleClass('loaded');
         console.error("Error fetching records:", error);
     } finally {
-        isFetching = false; // Reset fetching status
+        if (hasMore) {
+            isFetching = false; // Reset fetching status
+        } else {
+            isFetching = true; // Reset fetching status
+        }
     }
 }
+// async function fetchAndRenderRecords(offset, limit) {
+//     if (isFetching) return; // Prevent overlapping requests
+//     isFetching = true;
+//     $('body').toggleClass('loaded');
+
+//     try {
+//         const meta = await readS3BucketAsync("LocationMaster.json", "");
+//         $('body').toggleClass('loaded');
+
+//         if (meta.err) {
+//             console.log(meta.err);
+//             return;
+//         }
+
+//         const data = JSON.parse(meta.data);
+//         const recordsToAppend = data.slice(offset, offset + limit);
+
+//         if (recordsToAppend.length > 0) {
+//             allRecords = [...allRecords, ...recordsToAppend]; // Update all records
+//             renderData(recordsToAppend); // Render the new records
+//             currentOffset += limit; // Increment offset for the next batch
+//         } else {
+//             console.log("No more records to load.");
+//         }
+//     } catch (error) {
+//         $('body').toggleClass('loaded');
+//         console.error("Error fetching records:", error);
+//     } finally {
+//         isFetching = false; // Reset fetching status
+//     }
+// }
 
 // Function to render data
 function renderData(newRecords) {

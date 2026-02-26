@@ -138,7 +138,7 @@ var addStory = (async function () {
 
 
     async function GetCategoryList() {
-        debugger;
+        // debugger;
         var CategoryList = await readS3BucketAsync(activePathS3["category"], "");
 
         if (CategoryList.err) {
@@ -271,7 +271,7 @@ var addStory = (async function () {
     }
 
     function RenderFields(slug) {
-        debugger;
+        // debugger;
         fs.readFile(
             path.join(__dirname, "Files") + "/" + slug + ".json",
             "utf8",
@@ -286,13 +286,13 @@ var addStory = (async function () {
                 GetInstructorList();
                 GetLocatoionList();
                 GetOrganisationList();
-                $("body").toggleClass("loaded");
+                // $("body").toggleClass("loaded");
             }
         );
     }
 
     function ParseToElement(JSON_Obj) {
-        debugger;
+        // debugger;
         var ControlsList = [];
         for (var i = 0; i < JSON_Obj.length; i++) {
             var object = JSON_Obj[i];
@@ -922,105 +922,192 @@ var addStory = (async function () {
         return strStory.join(" ");
     }
 
-    function ReadSlug(slug) {
-        readS3Bucket(
-            activePathS3["story-detail"] + slug + ".json",
-            function (json) {
-                debugger;
-                if (json.err) {
-                    $("#divJson").find('[name="slug"]').val(slug);
-                }
-                //fs.readFile(pathName + "/" + slug + ".json", 'utf8', function (err, data) {
-                //if (err != null && err != "") {
-                //    $('#divJson').find('[name="slug"]').val(slug);
-                //}
-                try {
-                    var JSON_Obj = JSON.parse(json.data);
-                    for (var key in JSON_Obj) {
-                        var ignoreItem = [
-                            "fullStory",
-                            "fullStory_hindi",
-                            "master_categories",
-                        ];
-                        if (ignoreItem.indexOf(key) == -1) {
-                            $("#divJson")
-                                .find('[name="' + key + '"]')
-                                .val(JSON_Obj[key]);
+    // function ReadSlug(slug) {
+    //     readS3Bucket(
+    //         activePathS3["story-detail"] + slug + ".json",
+    //         function (json) {
+    //             // debugger;
+    //             if (json.err) {
+    //                 $("#divJson").find('[name="slug"]').val(slug);
+    //             }
+    //             //fs.readFile(pathName + "/" + slug + ".json", 'utf8', function (err, data) {
+    //             //if (err != null && err != "") {
+    //             //    $('#divJson').find('[name="slug"]').val(slug);
+    //             //}
+    //             try {
+    //                 var JSON_Obj = JSON.parse(json.data);
+    //                 for (var key in JSON_Obj) {
+    //                     var ignoreItem = [
+    //                         "fullStory",
+    //                         "fullStory_hindi",
+    //                         "master_categories",
+    //                     ];
+    //                     if (ignoreItem.indexOf(key) == -1) {
+    //                         $("#divJson")
+    //                             .find('[name="' + key + '"]')
+    //                             .val(JSON_Obj[key]);
 
-                            if (key == "instructor") {
+    //                         if (key == "instructor") {
+    //                             tmpinstructor = JSON_Obj[key];
+    //                             GetInstructorList();
+    //                         }
+    //                         if (key == "location") {
+    //                             // tmplocation=JSON_Obj[key];
+    //                             // perviousLocation=JSON_Obj[key];
+    //                             GetLocatoionList();
+
+    //                         }
+    //                         if (key == "organisation") {
+
+    //                             // tmpOrganisation=JSON_Obj[key];
+    //                             // perviousOrganisation=JSON_Obj[key];
+    //                             GetOrganisationList();
+    //                         }
+    //                     }
+    //                 }
+    //                 var master_categories = [];
+    //                 if (
+    //                     JSON_Obj["master_categories"] != undefined &&
+    //                     JSON_Obj["master_categories"] != ""
+    //                 ) {
+    //                     // will used at update time for remove purpose;
+    //                     priviousCategory = JSON_Obj["master_categories"].split(",");
+    //                     master_categories = JSON_Obj["master_categories"].split(",");
+    //                 } else {
+    //                     priviousCategory = "";
+    //                     master_categories.push(masterCategory.toLocaleLowerCase());
+    //                 }
+    //                 if (JSON_Obj["organisation"] != undefined && JSON_Obj["organisation"] != "") {
+    //                     // will used at update time for remove purpose;
+    //                     perviousOrganisation = JSON_Obj["organisation"];
+    //                     tmpOrganisation = JSON_Obj["organisation"];
+    //                 } else {
+    //                     perviousOrganisation = "";
+    //                     tmpOrganisation = "";
+    //                 }
+    //                 if (JSON_Obj["location"] != undefined && JSON_Obj["location"] != "") {
+    //                     // will used at update time for remove purpose;
+    //                     perviousLocation = JSON_Obj["location"];
+    //                     tmplocation = JSON_Obj["location"];
+    //                 } else {
+    //                     perviousLocation = "";
+    //                     tmplocation = "";
+    //                 }
+    //                 $("#divJson #ddl_ddlcategory").val(master_categories);
+    //                 $("#divJson #ddl_ddlcategory").multipleSelect("refresh");
+    //                 $("#ddlLanguage").val("English");
+    //                 var fullstory = JSON_Obj["fullStory"];
+    //                 var _html = $.parseHTML(fullstory);
+    //                 RenderFullStoryElement(_html);
+    //                 $("#ddlLanguage").val("Hindi");
+    //                 fullstory = JSON_Obj["fullStory_hindi"];
+    //                 _html = $.parseHTML(fullstory);
+    //                 RenderFullStoryElement(_html);
+    //                 $("#ddlLanguage").val("English");
+    //                 if (JSON_Obj["show_contact"] == true) {
+    //                     $("#chk_show_contact").attr('checked', true);
+    //                 }
+    //                 else {
+    //                     $("#chk_show_contact").attr('checked', false);
+    //                 }
+    //                 if (JSON_Obj["consent_received"] == true) {
+    //                     $("#chk_consent_received").attr('checked', true);
+    //                 }
+    //                 else {
+    //                     $("#chk_consent_received").attr('checked', false);
+    //                 }
+    //             } catch (e) {
+    //                 $("#divJson").find('[name="slug"]').val(slug);
+    //             }
+    //         }
+    //     );
+    // }
+
+    function ReadSlug(slug) {
+        $.ajax({
+            url: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/story-detail/" + slug,
+            method: "GET",
+            success: function (data) {
+                try {
+                    // Assuming data is already a parsed JSON object from the API.
+                    // If it's a string, uncomment the next line: var JSON_Obj = JSON.parse(data);
+                    var JSON_Obj = data;
+
+                    var ignoreItem = ["fullStory", "fullStory_hindi", "master_categories"];
+
+                    // Populate general fields
+                    for (var key in JSON_Obj) {
+                        if (ignoreItem.indexOf(key) === -1) {
+                            $("#divJson").find('[name="' + key + '"]').val(JSON_Obj[key]);
+
+                            if (key === "instructor") {
                                 tmpinstructor = JSON_Obj[key];
                                 GetInstructorList();
-                            }
-                            if (key == "location") {
-                                // tmplocation=JSON_Obj[key];
-                                // perviousLocation=JSON_Obj[key];
-                                GetLocatoionList();
-
-                            }
-                            if (key == "organisation") {
-
-                                // tmpOrganisation=JSON_Obj[key];
-                                // perviousOrganisation=JSON_Obj[key];
+                            } else if (key === "location") {
+                                GetLocationList();  // Fixed typo
+                            } else if (key === "organisation") {
                                 GetOrganisationList();
                             }
                         }
                     }
+
+                    // Handle categories
                     var master_categories = [];
-                    if (
-                        JSON_Obj["master_categories"] != undefined &&
-                        JSON_Obj["master_categories"] != ""
-                    ) {
-                        // will used at update time for remove purpose;
-                        priviousCategory = JSON_Obj["master_categories"].split(",");
+                    if (JSON_Obj["master_categories"] != null && JSON_Obj["master_categories"] !== "") {
+                        previousCategory = JSON_Obj["master_categories"].split(",");  // Fixed typo
                         master_categories = JSON_Obj["master_categories"].split(",");
                     } else {
-                        priviousCategory = "";
-                        master_categories.push(masterCategory.toLocaleLowerCase());
-                    }
-                    if (JSON_Obj["organisation"] != undefined && JSON_Obj["organisation"] != "") {
-                        // will used at update time for remove purpose;
-                        perviousOrganisation = JSON_Obj["organisation"];
-                        tmpOrganisation = JSON_Obj["organisation"];
-                    } else {
-                        perviousOrganisation = "";
-                        tmpOrganisation = "";
-                    }
-                    if (JSON_Obj["location"] != undefined && JSON_Obj["location"] != "") {
-                        // will used at update time for remove purpose;
-                        perviousLocation = JSON_Obj["location"];
-                        tmplocation = JSON_Obj["location"];
-                    } else {
-                        perviousLocation = "";
-                        tmplocation = "";
+                        previousCategory = "";
+                        master_categories.push((masterCategory || "default").toLowerCase());  // Assumed default
                     }
                     $("#divJson #ddl_ddlcategory").val(master_categories);
                     $("#divJson #ddl_ddlcategory").multipleSelect("refresh");
+
+                    // Handle organisation
+                    if (JSON_Obj["organisation"] != null && JSON_Obj["organisation"] !== "") {
+                        previousOrganisation = JSON_Obj["organisation"];  // Fixed typo
+                        tmpOrganisation = JSON_Obj["organisation"];
+                    } else {
+                        previousOrganisation = "";
+                        tmpOrganisation = "";
+                    }
+
+                    // Handle location
+                    if (JSON_Obj["location"] != null && JSON_Obj["location"] !== "") {
+                        previousLocation = JSON_Obj["location"];  // Fixed typo
+                        tmplocation = JSON_Obj["location"];
+                    } else {
+                        previousLocation = "";
+                        tmplocation = "";
+                    }
+
+                    // Render stories
                     $("#ddlLanguage").val("English");
                     var fullstory = JSON_Obj["fullStory"];
                     var _html = $.parseHTML(fullstory);
                     RenderFullStoryElement(_html);
+
                     $("#ddlLanguage").val("Hindi");
                     fullstory = JSON_Obj["fullStory_hindi"];
                     _html = $.parseHTML(fullstory);
                     RenderFullStoryElement(_html);
                     $("#ddlLanguage").val("English");
-                    if (JSON_Obj["show_contact"] == true) {
-                        $("#chk_show_contact").attr('checked', true);
-                    }
-                    else {
-                        $("#chk_show_contact").attr('checked', false);
-                    }
-                    if (JSON_Obj["consent_received"] == true) {
-                        $("#chk_consent_received").attr('checked', true);
-                    }
-                    else {
-                        $("#chk_consent_received").attr('checked', false);
-                    }
+
+                    // Set checkboxes
+                    $("#chk_show_contact").prop('checked', JSON_Obj["show_contact"] === true);
+                    $("#chk_consent_received").prop('checked', JSON_Obj["consent_received"] === true);
+
                 } catch (e) {
+                    console.error("Error parsing JSON:", e);
                     $("#divJson").find('[name="slug"]').val(slug);
                 }
+            },
+            error: function (xhr, status, error) {
+                console.error("API request failed:", status, error);
+                alert("Failed to load story details. Please try again.");
+                $("#divJson").find('[name="slug"]').val(slug);
             }
-        );
+        });
     }
 
     function RenderFullStoryElement(_html) {
@@ -1317,7 +1404,7 @@ var addStory = (async function () {
 
     }
     async function HideFromAllJSON(templateTop) {
-        debugger;
+        // debugger;
         //rest all json is in "storyInAllJson" except category.
         for (var i = 0; i < storyInAllJson.length; i++) {
             var IsExists = "";
@@ -1634,7 +1721,7 @@ var addStory = (async function () {
 
     $("#btndelete").on("click", async function () {
         if (confirm("Are you sure want to delete this story!")) {
-            debugger;
+            // debugger;
             $("body").toggleClass("loaded");
             const SlugRawJson = await readS3BucketAsync(
                 activePathS3["story-detail"] + $("#txt_slug").val() + ".json",
@@ -1906,7 +1993,7 @@ var addStory = (async function () {
         console.log(DeleteResponce);
     }
     async function deleteFromOrganisation(slug, filename) {
-        debugger;
+        // debugger;
         var organisationList;
         if (perviousOrganisation != "" && perviousOrganisation != undefined) {
             const IsExists = await existsS3Bucket(`${activePathS3["organisation"]}/${$.trim(perviousOrganisation)}.json`);
@@ -2235,7 +2322,7 @@ var addStory = (async function () {
 
 
     let saveOninstructor = async (templateTop) => {
-        debugger;
+        // debugger;
         // chk_consent_received
         // chk_show_contact
         let _instructor = $('#ddl_instructor').val();
@@ -2358,7 +2445,7 @@ var addStory = (async function () {
 
         var previousorganisationData = "";
         var previousorganisationJSONObj = "";
-        debugger;
+        // debugger;
         //remove from pervious organisation
         if (perviousOrganisation != "" && perviousOrganisation != undefined && perviousOrganisation.toLowerCase() != filename.toLowerCase()) {
             let currentlength = 0;
@@ -2452,7 +2539,7 @@ var addStory = (async function () {
 
         }
         if (path == "location") {
-            debugger;
+            // debugger;
             if (perviousLocation != "" && perviousLocation != undefined && perviousLocation != "Select Location" && perviousLocation != filename) {
                 let currentlength = 0;
                 const IsExists = await existsS3Bucket(`${activePathS3[path]}/${$.trim(perviousLocation)}.json`);

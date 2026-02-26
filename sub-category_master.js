@@ -1,15 +1,67 @@
 const fs = require('fs');
 const path = require('path');
 let pathName = "C:\\WM_Json";
-var remote = require('electron').remote;
-var session = require('electron').remote.session;
-var app = require('electron').remote.app;
+var remote = require('@electron/remote');
+var session = remote.session;
+var app = remote.app;
 var ipcRenderer = require('electron').ipcRenderer;
 const dialog = remote.dialog;
 let common = require('./js/config');
 let activePathS3 = common.getS3Path();
 let sub_categoryList = [];
 categorymasterList();
+// async function categorymasterList() {
+//     $('body').toggleClass('loaded');
+//     var meta = await readS3BucketAsync(activePathS3["category"], "");
+
+//     $('body').toggleClass('loaded');
+//     if (meta.err) {
+//         $('#divStory').html('');
+//         return console.log(meta.err);
+//     }
+//     var category = JSON.parse(meta.data);
+//     let strCategory = [];
+//     strCategory.push(`<option value="">--Select--</optio>`);
+//     $(category).each(function () {
+//         strCategory.push(`<option value="${this.category}">${this.title}</optio>`);
+//     });
+//     $('#ddlcategory').html(strCategory.join(" "));
+
+//     var $select = $("#ddlcategory").selectize({
+//         sortField: 'text',
+//         maxOptions:100000,
+//         placeholder:"Select Category"
+//     });
+//     var selectize = $select[0].selectize;
+//     selectize.setValue('');
+
+//     $('#ddlCategoryMain').html(strCategory.join(" "));
+//     var $select = $("#ddlCategoryMain").selectize({
+//         sortField: 'text',
+//         maxOptions:100000,
+//         placeholder:"Select Category"
+//     });
+//     var selectize = $select[0].selectize;
+//     selectize.setValue('');
+
+
+//     $('#ddlCategoryMain').html(strCategory.join(" "));
+//     var submeta = await readS3BucketAsync(activePathS3["subcategory"], "");
+//     if (submeta.err) {
+//         console.log(submeta.err);
+//     }
+//     else {
+//         sub_categoryList = JSON.parse(submeta.data);
+//         if (typeof sub_categoryList == "object") {
+//             if (sub_categoryList.length == undefined) {
+//                 sub_categoryList = [sub_categoryList];
+//             }
+//         }
+//     }
+//     $('#divStory').html(RenderHeader());
+//     await RenderStory(sub_categoryList);
+// }
+
 async function categorymasterList() {
     $('body').toggleClass('loaded');
     var meta = await readS3BucketAsync(activePathS3["category"], "");

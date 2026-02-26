@@ -1,4 +1,4 @@
-var remote = require('electron').remote;
+var remote = require('@electron/remote');
 const ipcRenderer = require('electron').ipcRenderer;
 var pathName = remote.getGlobal('sharedObj').pathName;
 const dialog = remote.dialog;

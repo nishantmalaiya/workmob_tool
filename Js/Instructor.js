@@ -1,29 +1,103 @@
 const fs = require("fs");
 const path = require("path");
 let pathName = "C:\\WM_Json";
-var remote = require("electron").remote;
-var session = require("electron").remote.session;
-var app = require("electron").remote.app;
+// var remote = require("electron").remote;
+var remote = require('@electron/remote');
+var session = remote.session;
+var app = remote.app;
 var ipcRenderer = require("electron").ipcRenderer;
 const dialog = remote.dialog;
 let common = require("../js/config");
 let activePathS3 = common.getS3Path();
+const limit = 100;
 let instructorList = [];
+let currentOffset = 0; // Tracks the current offset
+let allRecords = []; // To store fetched records
+let isFetching = false; 
+let hasMore = false;
+let lastKey = '';
+let globalCount = 0; 
+locationMasterList();
+
+async function locationMasterList() {
+    // Reset initial state
+    currentOffset = 0;
+    allRecords = [];
+    globalCount = 0;
+    $('#divStory').html('');
+
+    GetinstructorList(currentOffset, limit);
+
+    // Attach scroll event listener for lazy loading
+    let scrollTimeout;
+    $(window).on('scroll', function () {
+        if (scrollTimeout) clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+            if ($(window).scrollTop() + $(window).height() >= $(document).height() - 10) {
+                if (!isFetching) {
+                    GetinstructorList(currentOffset, limit);
+                }
+            }
+        }, 200); // Debounce scroll event by 200ms
+    });
+}
 
 
-GetinstructorList();
-async function GetinstructorList() {
-    debugger;
+// GetinstructorList();
+// async function GetinstructorList() {
+//     // debugger;
+//     $("body").toggleClass("loaded");
+//     let meta = await readS3BucketAsync(activePathS3["instructor"], "");
+//     $("body").toggleClass("loaded");
+//     if (meta.err) {
+//         $("#divInstructor").html("");
+//         return console.log(meta.err);
+//     }
+//     $("#divInstructor").html(renderHeader());
+//     instructorList = JSON.parse(meta.data);
+//     await RenderInstructor(JSON.parse(meta.data));
+// }
+
+async function GetinstructorList(offset, limit) {
+    if (isFetching) return; // Prevent overlapping requests
+    isFetching = true;
     $("body").toggleClass("loaded");
-    let meta = await readS3BucketAsync(activePathS3["instructor"], "");
-    $("body").toggleClass("loaded");
-    if (meta.err) {
+    
+    // Replace S3 read with API call
+    // let response;
+    try {
+       const response = await fetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors?limit=${limit}&lastKey=${encodeURIComponent(lastKey)}`);  // Adjust the URL to your actual API endpoint
+        if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
+        }
+        const data = await response.json();
+        $('body').toggleClass('loaded');
+        // Proceed with rendering (similar to original logic)
+        // $("#divInstructor").html(renderHeader());
+        hasMore = data.hasMore;
+        lastKey = data.lastKey;
+        instructorList = data.instructors;  // Assuming the API returns the data directly (no need for JSON.parse if it's already parsed)
+        if (instructorList.length > 0) {
+            allRecords = [...allRecords, ...instructorList]; // Update all records
+            RenderInstructor(instructorList); // Render the new records
+            currentOffset += limit; // Increment offset for the next batch
+        } else {
+            console.log("No more records to load.");
+        }
+        // await RenderInstructor(data.instructors);
+    } catch (error) {
+        // Handle errors similarly to the original (clear div and log)
         $("#divInstructor").html("");
-        return console.log(meta.err);
+        console.log(error.message);
+    } finally {
+        if (hasMore) {
+            isFetching = false; // Reset fetching status
+        } else {
+            isFetching = true; // Reset fetching status
+        }
     }
-    $("#divInstructor").html(renderHeader());
-    instructorList = JSON.parse(meta.data);
-    await RenderInstructor(JSON.parse(meta.data));
+    
+    // $("body").toggleClass("loaded");
 }
 
 function renderHeader() {
@@ -45,16 +119,17 @@ function renderHeader() {
     return storyCard;
 }
 async function RenderInstructor(instructor) {
-    debugger;
+    // debugger;
     $("body").toggleClass("loaded");
-    $(".instructorList").remove();
+    // $(".instructorList").remove();
     let Savedinstructor = [];
     let count = 0;
     $(instructor).each(function () {
-        count = count + 1;
+        // count = count + 1;
+        globalCount += 1;
         if (this.user_id != "noinstructor") {
             Savedinstructor.push(`<div class="instructorList col-md-12 row column" name="instructor" id="${this.user_id}">
-            <div class=\"col-md-1\">${count}</div>
+            <div class=\"col-md-1\">${globalCount}</div>
             <div class=\"col-md-1\"><h5>${this.user_id}</h5></div>
             <div class=\"col-md-2\"><h5>${this.name}</h5></div>
             <div class=\"col-md-2\"><h5>${this.job_title}</h5></div>
@@ -67,7 +142,7 @@ async function RenderInstructor(instructor) {
             </div>`);
         } else {
             Savedinstructor.push(`<div class="instructorList col-md-12 row column" name="instructor" id="${this.user_id}">
-            <div class=\"col-md-1\">${count}</div>
+            <div class=\"col-md-1\">${globalCount}</div>
             <div class=\"col-md-1\"><h5>${this.user_id}</h5></div>
         <div class=\"col-md-2\"><h5>${this.name}</h5></div>
         <div class=\"col-md-2\"><h5>${this.job_title}</h5></div>
@@ -346,7 +421,7 @@ async function validation(cb) {
     }
     else
     {
-        debugger;
+        // debugger;
         if (item["user_guid"].length <15) {
             msg = "User Guid length should be more than 15 Character";
             cansave = false;
@@ -477,30 +552,50 @@ $('#txtInstructorNo').on('keyup', function () {
     } 
 });
 
+// async function SearchOnInstructor() {
+//     // debugger;
+//     let story = [];
+//     let instructorno = $('#txtInstructorNo').val().trim();
+//     if (instructorno) {
+//         // Filter the instructor list with a "like" keyword match
+//         story = instructorList.filter(function (i) {
+//             return (i.mobile_no !== undefined && i.mobile_no.toString().includes(instructorno))||(i.name !== undefined && i.name.toString().includes(instructorno));
+//         });
+//     } else {
+//         // If the input is empty, reset the search result to show all instructors
+//         story = instructorList;
+//     }
+
+//     $("#divInstructor").html(await RenderInstructor(story));
+// }
+
 async function SearchOnInstructor() {
-    debugger;
+    globalCount = 0; // NEW: Reset global count for search
     let story = [];
     let instructorno = $('#txtInstructorNo').val().trim();
     if (instructorno) {
-        // Filter the instructor list with a "like" keyword match
-        story = instructorList.filter(function (i) {
-            return (i.mobile_no !== undefined && i.mobile_no.toString().includes(instructorno))||(i.name !== undefined && i.name.toString().includes(instructorno));
+        story = allRecords.filter(function (i) {  // CHANGED: Use allRecords instead of instructorList
+            return (i.mobile_no !== undefined && i.mobile_no.toString().includes(instructorno)) || (i.name !== undefined && i.name.toString().includes(instructorno));
         });
     } else {
-        // If the input is empty, reset the search result to show all instructors
-        story = instructorList;
+        story = allRecords;  // CHANGED: Use allRecords
     }
-
-    $("#divInstructor").html(await RenderInstructor(story));
+    $("#divInstructor").html(renderHeader());  // NEW: Clear and add header for re-render
+    await RenderInstructor(story);
 }
 
 
-
-
-async function ClearSearchOnInstructor() 
-{
+async function ClearSearchOnInstructor() {
     $('#txtInstructorNo').val('');
-    // $("#divInstructor").html(renderHeader());
-    $("#divInstructor").html(await RenderInstructor(instructorList));
+    globalCount = 0; // NEW: Reset global count
+    $("#divInstructor").html(renderHeader());  // NEW: Clear and add header for re-render
+    await RenderInstructor(allRecords);  // CHANGED: Use allRecords
 }
+
+// async function ClearSearchOnInstructor() 
+// {
+//     $('#txtInstructorNo').val('');
+//     // $("#divInstructor").html(renderHeader());
+//     $("#divInstructor").html(await RenderInstructor(instructorList));
+// }
 //#endregion

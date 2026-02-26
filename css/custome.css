@@ -57,3 +57,11 @@ hr {
     border-top: 1px solid #c9c7c7;
     width: 100%
 }
+.selectize-dropdown.single {
+    overflow-y: auto;
+    height: 200px !important;
+}
+.single .selectize-dropdown-content {
+    overflow-y: unset;
+    max-height: unset;
+}

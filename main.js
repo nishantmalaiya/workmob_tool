@@ -24,7 +24,8 @@ let win;
 global.sharedObj = {
     pathName: "C:\\WM_Json",
     currentStory: "default",
-    S3filepath: "stories_workmob/config/", //"stories_workmob/confjson/", //config
+    S3filepath: "stories_workmob/confjson/", //"stories_workmob/confjson/", //config
+    // S3filepath: "stories_workmob/config/", //"stories_workmob/confjson/", //config
 };
 
 let child;

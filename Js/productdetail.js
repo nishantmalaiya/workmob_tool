@@ -1,9 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 let pathName = "C:\\WM_Json";
-var remote = require("electron").remote;
-var session = require("electron").remote.session;
-var app = require("electron").remote.app;
+var remote = require('@electron/remote');
+var session = remote.session;
+var app = remote.app;
 var ipcRenderer = require("electron").ipcRenderer;
 
 const dialog = remote.dialog;
@@ -203,7 +203,7 @@ async function deleteproductdetail(ProductId, userid,_self)
     {
         var AfterDeleteProduct=[];
         $("body").toggleClass("loaded");
-        debugger; 
+        // debugger; 
         $(_self).closest(".storycard").remove();
         var productownerList;
         
