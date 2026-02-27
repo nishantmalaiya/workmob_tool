@@ -97,10 +97,12 @@ $("body").on("change", "#ddl_ddlcategory", async function () {
 $("#divExtraFieldHindi").hide();
 var addStory = (async function () {
 
+    let editSlug = "";
     ipcRenderer.on("receiveSlug", async (event, arg) => {
 
         console.log(arg);
         masterCategory = arg.category;
+        editSlug = arg.slug;
         RenderFields("story");
         RenderMasterIndexstuff(arg.slug);
         if (arg.slug == "") {
@@ -198,7 +200,7 @@ var addStory = (async function () {
 
         }
     }
-    async function GetLocatoionList() {
+    async function GetLocationList() {
         var LocationList = await readS3BucketAsync("LocationMaster.json", "");
 
         if (LocationList.err) {
@@ -284,7 +286,7 @@ var addStory = (async function () {
 
                 GetvideoFormatList();
                 GetInstructorList();
-                GetLocatoionList();
+                GetLocationList();
                 GetOrganisationList();
                 // $("body").toggleClass("loaded");
             }
@@ -473,9 +475,9 @@ var addStory = (async function () {
                     console.log("Error checking story:", e);
                 }
 
-                if (checkData.error === "Story not found") {
-                    const response = await fetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories", {
-                        method: "POST",
+                if (checkData.error === "Story not found" || editSlug !== "") {
+                    const response = await fetch(editSlug !== "" ? "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/" + editSlug : "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories", {
+                        method: editSlug !== "" ? "PUT" : "POST",
                         headers: {
                             "Content-Type": "application/json",
                         },
@@ -483,6 +485,37 @@ var addStory = (async function () {
                     });
                     const meta = await response.json();
                     console.log("API Response:", meta);
+
+                    const locationVal = $("#divJson #ddl_location").val();
+                    if (locationVal && locationVal !== "NoLocation") {
+                        const addLocationResponse = await fetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/location-detail/${locationVal}`, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(GenerateStory),
+                        });
+                        const locationMeta = await addLocationResponse.json();
+                        console.log("Location Detail API Response:", locationMeta);
+                    }
+
+                    const categoryVal = $("#divJson #ddl_ddlcategory").val();
+                    if (categoryVal && categoryVal !== "") {
+                        const addCategoryResponse = await fetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/category-detail/${categoryVal}`, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(GenerateStory),
+                        });
+                        const categoryMeta = await addCategoryResponse.json();
+                        console.log("Category Detail API Response:", categoryMeta);
+                    }
+
+
+
+
+
                 } else {
                     console.log("Story already exists. Skipping creation.", checkData);
 
@@ -1025,7 +1058,7 @@ var addStory = (async function () {
 
     function ReadSlug(slug) {
         $.ajax({
-            url: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/story-detail/" + slug,
+            url: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/" + slug,
             method: "GET",
             success: function (data) {
                 try {

@@ -165,21 +165,23 @@ $("#btnSave").click(function () {
                 vlocationMaster = JSON.parse(meta.data);
             }
             if ($("#hdnLocationId").val() == "") {
-                var result = $(vlocationMaster).filter(function (item) {
-                    return item["id"] == cansave["item"]["id"];
-                });
-                if (result.length > 0) {
-                    alert("This Location already exist");
-                    return false;
-                }
-                else {
-                    vlocationMaster.push(cansave["item"]);
-                }
-                const IsExists = await existsS3Bucket(`location/${cansave["item"]["location"].toLowerCase()}.json"`);
-                if (!IsExists.isExists) {
-                    var a = [];
-                    await WriteS3Bucket(a, `location/${cansave["item"]["location"].toLowerCase()}.json"`);
-                }
+
+                
+                // var result = $(vlocationMaster).filter(function (item) {
+                //     return item["id"] == cansave["item"]["id"];
+                // });
+                // if (result.length > 0) {
+                //     alert("This Location already exist");
+                //     return false;
+                // }
+                // else {
+                //     vlocationMaster.push(cansave["item"]);
+                // }
+                // const IsExists = await existsS3Bucket(`location/${cansave["item"]["location"].toLowerCase()}.json"`);
+                // if (!IsExists.isExists) {
+                //     var a = [];
+                //     await WriteS3Bucket(a, `location/${cansave["item"]["location"].toLowerCase()}.json"`);
+                // }
             }
             else {
                 for (var i = 0; i < vlocationMaster.length; i++) {

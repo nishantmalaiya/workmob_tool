@@ -50,7 +50,7 @@ function GetCategoryList(offset, limit) {
 
   fetch(url)
     .then(response => response.json())
-    .then(data => {      
+    .then(data => {
       hasMore = data.hasMore;
       lastKey = data.lastKey;
 
@@ -115,28 +115,28 @@ function GetCategoryList(offset, limit) {
 }
 
 function GetFromS3CategoryList() {
-    //debugger;
-    readS3Bucket(activePathS3.category, function (json) {
-        if (json.err) {
-            return console.log(json.err);
-        }
-        var element = [];
-        element.push("<option value=\"\">select</option>");
-        var JSON_ObjCategory = JSON.parse(json.data);
-        console.log('JSON_ObjCategory', JSON_ObjCategory);
-        for (let index = 0; index < JSON_ObjCategory.length; index++) {
-            var _category = JSON_ObjCategory[index];
-            element.push("<option value=\"" + _category.category + "\">" + _category.title + "</option>");
-        }
-        $('#ddlCategory').html(element.join(' '));
-        var $select = $("#ddlCategory").selectize({
-            sortField: 'text',
-            maxOptions:100000,
-            placeholder:"Select Category"
-        });
-        var selectize = $select[0].selectize;
-        selectize.setValue('');
+  //debugger;
+  readS3Bucket(activePathS3.category, function (json) {
+    if (json.err) {
+      return console.log(json.err);
+    }
+    var element = [];
+    element.push("<option value=\"\">select</option>");
+    var JSON_ObjCategory = JSON.parse(json.data);
+    console.log('JSON_ObjCategory', JSON_ObjCategory);
+    for (let index = 0; index < JSON_ObjCategory.length; index++) {
+      var _category = JSON_ObjCategory[index];
+      element.push("<option value=\"" + _category.category + "\">" + _category.title + "</option>");
+    }
+    $('#ddlCategory').html(element.join(' '));
+    var $select = $("#ddlCategory").selectize({
+      sortField: 'text',
+      maxOptions: 100000,
+      placeholder: "Select Category"
     });
+    var selectize = $select[0].selectize;
+    selectize.setValue('');
+  });
 
 }
 
@@ -436,36 +436,41 @@ $('#txtName').on('blur', function () {
 $('#txtSlug').on('blur', function () {
   ApplyFilter();
 });
-function ApplyFilter() {
+async function ApplyFilter() {
   var story = JSON_Obj;
   if ($('#txtSlug').val() == "") {
-    if ($('#ddlCity').val() != "") {
-      story = JSON_Obj.filter(function (i) {
-        return i.location == $('#ddlCity').val();
-      });
+    if (JSON_Obj) {
+      if ($('#ddlCity').val() != "") {
+        story = JSON_Obj.filter(function (i) {
+          return i.location == $('#ddlCity').val();
+        });
+      }
+      if ($('#txtName').val() != "") {
+        story = story.filter(function (i) {
+          return i.name.toLowerCase().indexOf($('#txtName').val().toLowerCase()) != -1;
+        });
+      }
+      $('#divStory').html(RenderStory(story).join(" "));
     }
-    if ($('#txtName').val() != "") {
-      story = story.filter(function (i) {
-        return i.name.toLowerCase().indexOf($('#txtName').val().toLowerCase()) != -1;
-      });
-    }
-    $('#divStory').html(RenderStory(story).join(" "));
   }
   else {
-    readS3Bucket(activePathS3["story-detail"] + $('#txtSlug').val() + ".json", function (json) {
-      console.log('hello comes');
-      if (json.err) {
-        $('#ddlCity').html('');
-        $('#divStory').html('');
+    const slug = $('#txtSlug').val();
+    try {
+      const response = await fetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/${slug}`);
+      const checkData = await response.json();
+
+      if (checkData.error === "Story not found") {
         dialog.showErrorBox('Slug not exists', "Please enter valid slug");
-        return console.log(json.err);
+        return;
       }
       else {
-        configJson = JSON.parse(json.data);
-        story = [configJson];
+        story = [checkData];
         $('#divStory').html(RenderStory(story).join(" "));
       }
-    });
+    } catch (e) {
+      console.log("Error checking story:", e);
+      dialog.showErrorBox('Error', "An error occurred while fetching the story.");
+    }
   }
 }
 
