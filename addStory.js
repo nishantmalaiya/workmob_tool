@@ -279,7 +279,7 @@ var addStory = (async function () {
             "utf8",
             function (err, data) {
                 var JSON_Obj = JSON.parse(data);
-                debugger;
+               // debugger;
                 var finalHtml = ParseToElement(JSON_Obj);
                 $("#divJson").html(finalHtml.join(" "));
                 GetCategoryList();

@@ -28,10 +28,10 @@ async function locationMasterList() {
   currentOffset = 0;
   allRecords = [];
   $('.single').html('');
-
-  if (type == 'default') {
+  console.log('type' + type)
+  if (type == 'default' || type == 'audio') {
     GetCategoryList(currentOffset, limit);
-  } else {
+  } else if (type == 'gyan' || type == 'hope' || type == 'namaste' || type == 'promotion') {
     GetFromS3CategoryList();
   }
 }
@@ -46,7 +46,9 @@ function GetCategoryList(offset, limit) {
     dropdown.append('<div class="dropdown-loader"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid" width="30" height="30" style="shape-rendering: auto; display: block; background: rgb(255, 255, 255);margin: 0 auto;" xmlns:xlink="http://www.w3.org/1999/xlink"><g><circle stroke-dasharray="164.93361431346415 56.97787143782138" r="35" stroke-width="10" stroke="#337ab7" fill="none" cy="50" cx="50"><animateTransform keyTimes="0;1" values="0 50 50;360 50 50" dur="1s" repeatCount="indefinite" type="rotate" attributeName="transform"></animateTransform></circle><g></g></g></svg></div>');
   }
 
-  const url = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories?limit=${limit}&lastKey=${encodeURIComponent(lastKey)}`;
+  const url = type === 'audio'
+    ? `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/audio-category`
+    : `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories?limit=${limit}&lastKey=${encodeURIComponent(lastKey)}`;
 
   fetch(url)
     .then(response => response.json())
@@ -54,7 +56,9 @@ function GetCategoryList(offset, limit) {
       hasMore = data.hasMore;
       lastKey = data.lastKey;
 
-      var JSON_ObjCategory = data.categories;
+     // var JSON_ObjCategory = data.categories;
+
+      const JSON_ObjCategory = type === 'audio'?data.data:data.categories
 
       if (!selectizeInstance) {
         // First load: Build HTML, initialize Selectize
