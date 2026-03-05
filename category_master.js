@@ -127,7 +127,7 @@ let isLoading = false; // Prevent multiple simultaneous loads
 const pageSize = 100; // Number of items per page
 
 async function categorymasterList() {
-    debugger;
+   // debugger;
     $('body').toggleClass('loaded');
     var meta = await readS3BucketAsync(activePathS3["category"], "");
     $('body').toggleClass('loaded');
