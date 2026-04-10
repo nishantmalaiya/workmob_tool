@@ -10,15 +10,35 @@ var pathName = remote.getGlobal("sharedObj").pathName;
 const dialog = remote.dialog;
 let common = require("./js/config");
 let activePathS3 = common.getS3Path();
+const defaultApiHeaders = {
+    "Content-Type": "application/json",
+    "Accept": "*/*"
+};
+function apiFetch(url, options = {}) {
+    return fetch(url, {
+        ...options,
+        cache: "no-store",
+        headers: {
+            ...defaultApiHeaders,
+            ...(options.headers || {})
+        }
+    });
+}
+const storyFeedApiUrls = {
+    storiestop: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-top",
+    storiestending: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-trending",
+    storiesMobileHomeScreen: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-mobile-home",
+    bloghome: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-blog-home"
+};
 var storyAlsoOn = [];
 var storyInAllJson = [];
 var Need_subCategory_in = ["namaste", "promotion"];
 var Need_trending_in = ["gyan", "hope", "namaste", "promotion"];
 var type = remote.getGlobal("sharedObj").currentStory;
-storyAlsoOn.push({ chkbox: "storiestop", file: activePathS3["stories-top"], isExist: false, index: "-1", total: "0", label: "Stories Top", CanAdd: false, });
-storyAlsoOn.push({ chkbox: "storiestending", file: activePathS3["trending"], isExist: false, index: "-1", total: "0", label: "Trending", CanAdd: false, });
-storyAlsoOn.push({ chkbox: "storiesMobileHomeScreen", file: activePathS3["mobile-home"], isExist: false, index: "-1", total: "0", label: "Mobile Home Screen", CanAdd: false, });
-storyAlsoOn.push({ chkbox: "bloghome", file: activePathS3["blog-home"], isExist: false, index: "-1", total: "0", label: "Blog Home", CanAdd: false, });
+storyAlsoOn.push({ chkbox: "storiestop", file: storyFeedApiUrls.storiestop, isExist: false, index: "-1", total: "0", label: "Stories Top", CanAdd: false, });
+storyAlsoOn.push({ chkbox: "storiestending", file: storyFeedApiUrls.storiestending, isExist: false, index: "-1", total: "0", label: "Trending", CanAdd: false, });
+storyAlsoOn.push({ chkbox: "storiesMobileHomeScreen", file: storyFeedApiUrls.storiesMobileHomeScreen, isExist: false, index: "-1", total: "0", label: "Mobile Home Screen", CanAdd: false, });
+storyAlsoOn.push({ chkbox: "bloghome", file: storyFeedApiUrls.bloghome, isExist: false, index: "-1", total: "0", label: "Blog Home", CanAdd: false, });
 
 if (Need_trending_in.indexOf(type) != -1) {
     storyAlsoOn.push({ chkbox: "storieshope", file: activePathS3["stories-hope"], isExist: false, index: "-1", total: "0", label: "Hope", CanAdd: false, });
@@ -53,6 +73,52 @@ var tmpTopStory = false;
 var perviousOrganisation = "";
 var perviousLocation = "";
 GetSubcategoryList();
+
+    async function readStoryFeed(feed) {
+        if (!feed || !feed.file || !/^https?:\/\//i.test(feed.file)) {
+            return [];
+        }
+
+        try {
+            const response = await apiFetch(feed.file);
+            const data = await response.json();
+            if (Array.isArray(data)) {
+                return data;
+            }
+            if (Array.isArray(data.stories)) {
+                return data.stories;
+            }
+            if (Array.isArray(data.data)) {
+                return data.data;
+            }
+        } catch (error) {
+            console.error(`Error fetching ${feed.chkbox} feed:`, error);
+        }
+
+        return [];
+    }
+
+    async function writeStoryFeed(feed, stories) {
+        if (!feed || !feed.file || !/^https?:\/\//i.test(feed.file)) {
+            return null;
+        }
+
+        try {
+            const response = await apiFetch(feed.file, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    story: stories,
+                }),
+            });
+            return await response.json();
+        } catch (error) {
+            console.error(`Error updating ${feed.chkbox} feed:`, error);
+            return null;
+        }
+    }
 
 
 
@@ -130,6 +196,9 @@ var addStory = (async function () {
         }
     });
 
+    // Backup: ask main to send slug data if we registered before did-finish-load fired.
+    ipcRenderer.send("addStory-renderer-ready");
+
     let rawdata = fs.readFileSync(path.resolve(__dirname, "Files/templateTop.json"));
     let templateTop = JSON.parse(rawdata);
     let rawdataConfing = await readS3BucketAsync(activePathS3["config"], "");
@@ -139,14 +208,42 @@ var addStory = (async function () {
     var select2 = require("select2");
 
 
+    // async function GetCategoryList() {
+    //     // debugger;
+    //     var CategoryList = await readS3BucketAsync(activePathS3["category"], "");
+
+    //     if (CategoryList.err) {
+    //         return console.log(RawJson.err);
+    //     } else {
+    //         JSON_Obj = JSON.parse(CategoryList.data);
+    //         var element = [];
+    //         for (var i = 0; i < JSON_Obj.length; i++) {
+    //             var _category = JSON_Obj[i];
+    //             element.push('<option value="' + _category.category + '">' + _category.title + " </option>");
+    //             _masterCategory.push(_category.category);
+    //         }
+    //         $("#divJson #ddl_ddlcategory").html(element.join(" "));
+    //         if (Need_subCategory_in.indexOf(type) == -1) {
+    //             if (masterCategory != "") { $("#divJson #ddl_ddlcategory").val(masterCategory); }
+    //             $("#divJson #ddl_ddlcategory").attr("multiple", "multiple");
+    //             $("#divJson #ddl_ddlcategory").addClass("multiple-select");
+    //             $("#divJson #ddl_ddlcategory").multipleSelect({
+    //                 filter: true,
+    //                 width: "100%",
+    //                 placeholder: $(this).attr("Select Category"),
+    //             });
+    //         }
+    //     }
+    // }
+
+
     async function GetCategoryList() {
         // debugger;
-        var CategoryList = await readS3BucketAsync(activePathS3["category"], "");
+        try {
+            const response = await apiFetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories?limit=100");
+            const data = await response.json();
+            const JSON_Obj = data.categories;
 
-        if (CategoryList.err) {
-            return console.log(RawJson.err);
-        } else {
-            JSON_Obj = JSON.parse(CategoryList.data);
             var element = [];
             for (var i = 0; i < JSON_Obj.length; i++) {
                 var _category = JSON_Obj[i];
@@ -164,49 +261,114 @@ var addStory = (async function () {
                     placeholder: $(this).attr("Select Category"),
                 });
             }
+        } catch (error) {
+            console.log("Error fetching categories:", error);
         }
     }
 
     async function GetInstructorList() {
-        // debugger;
-        var InstructorList = await readS3BucketAsync(activePathS3["instructor"], "");
+        try {
+            let lastKey = "";
+            let hasMore = true;
+            let loading = false;
 
-        if (InstructorList.err) {
-            return console.log(RawJson.err);
-        } else {
-            JSON_Obj = JSON.parse(InstructorList.data);
-            //var JSON_Obj = JSON.parse(json.data);
+            const response = await apiFetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors?limit=100");
+            const data = await response.json();
+            const JSON_Obj = data.instructors || [];
+            lastKey = data.lastKey;
+            hasMore = !!lastKey && data.hasMore !== false;
+
             var element = [];
             for (var i = 0; i < JSON_Obj.length; i++) {
                 var _instructor = JSON_Obj[i];
-                element.push('<option value="' + _instructor.user_id + '">' + _instructor.name + ' - ' + _instructor.mobile_no + " </option>");
-                _instructorList.push(_instructor.user_id);
+                var instructorId = _instructor.user_id || _instructor.Id;
+                element.push('<option value="' + instructorId + '">' + _instructor.name + ' - ' + _instructor.mobile_no + " </option>");
+                if (typeof _instructorList !== "undefined") _instructorList.push(instructorId);
             }
             $("#divJson #ddl_instructor").html(element.join(" "));
+
             var $select = $("#divJson #ddl_instructor").selectize({
                 sortField: 'text',
                 maxOptions: 100000,
-                placeholder: "Select User"
+                placeholder: "Select User",
+                load: async function(query, callback) {
+                    if (!query.length || !/^\d{5,}$/.test(query)) return callback();
+                    try {
+                        console.log("Searching instructors by mobile:", query);
+                        const searchUrl = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors?mobile_no=${encodeURIComponent(query)}`;
+                        const searchResponse = await apiFetch(searchUrl);
+                        const searchData = await searchResponse.json();
+                        
+                        if (searchData.instructors && searchData.instructors.length > 0) {
+                            var results = searchData.instructors.map(instr => {
+                                var id = instr.user_id || instr.Id;
+                                if (typeof _instructorList !== "undefined" && !_instructorList.includes(id)) _instructorList.push(id);
+                                return { value: id, text: instr.name + ' - ' + instr.mobile_no };
+                            });
+                            callback(results);
+                        } else {
+                            callback();
+                        }
+                    } catch (e) {
+                        console.error("Search error:", e);
+                        callback();
+                    }
+                },
+                onDropdownOpen: function ($dropdown) {
+                    var self = this;
+                    var $content = $dropdown.find('.selectize-dropdown-content');
+
+                    // Detach then re-attach to ensure no double-listeners AND it is bound to the latest DOM element
+                    $content.off('scroll').on('scroll', async function () {
+                        if (loading || !lastKey) return;
+
+                        var scrollPos = Math.ceil($content.scrollTop() + $content.innerHeight());
+                        var scrollHeight = $content[0].scrollHeight;
+
+                        if (scrollPos >= scrollHeight - 50) {
+                            loading = true;
+                            try {
+                                console.log("Fetching next page of instructors with lastKey:", lastKey);
+                                const nextUrl = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors?limit=100&lastKey=${encodeURIComponent(lastKey)}`;
+                                const nextResponse = await apiFetch(nextUrl);
+                                const nextData = await nextResponse.json();
+
+                                if (nextData.instructors && nextData.instructors.length > 0) {
+                                    nextData.instructors.forEach(instr => {
+                                        var id = instr.user_id || instr.Id;
+                                        self.addOption({ value: id, text: instr.name + ' - ' + instr.mobile_no });
+                                        if (typeof _instructorList !== "undefined" && !_instructorList.includes(id)) _instructorList.push(id);
+                                    });
+                                    self.refreshOptions(false);
+                                }
+
+                                lastKey = nextData.lastKey;
+                            } catch (e) {
+                                console.error("Error loading more instructors:", e);
+                            } finally {
+                                loading = false;
+                            }
+                        }
+                    });
+                }
             });
             var selectize = $select[0].selectize;
 
             if (tmpinstructor == '') {
                 selectize.setValue('');
-            }
-            else {
+            } else {
                 selectize.setValue(tmpinstructor);
-                // $("#divJson").find('[name="instructor"]').val(tmpinstructor); 
             }
-
+        } catch (error) {
+            console.log("Error fetching instructors:", error);
         }
     }
     async function GetLocationList() {
-        var LocationList = await readS3BucketAsync("LocationMaster.json", "");
+        try {
+            const response = await apiFetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations");
+            const data = await response.json();
+            const JSON_Obj = data.locations;
 
-        if (LocationList.err) {
-            return console.log(LocationList.err);
-        } else {
-            JSON_Obj = JSON.parse(LocationList.data);
             var element = [];
             element.push('<option value="NoLocation">No Location</option>');
             for (var i = 0; i < JSON_Obj.length; i++) {
@@ -227,15 +389,16 @@ var addStory = (async function () {
                 selectize.setValue(tmplocation);
 
             }
+        } catch (error) {
+            console.log("Error fetching locations:", error);
         }
     }
     async function GetOrganisationList() {
-        var OrganisationList = await readS3BucketAsync("OrganisationMaster.json", "");
+        try {
+            const response = await apiFetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/organisation_master");
+            const responseData = await response.json();
+            const JSON_Obj = responseData.data;
 
-        if (OrganisationList.err) {
-            return console.log(OrganisationList.err);
-        } else {
-            JSON_Obj = JSON.parse(OrganisationList.data);
             var element = [];
             element.push('<option value="NoOrganisation">No Organisation</option>');
             for (var i = 0; i < JSON_Obj.length; i++) {
@@ -256,6 +419,8 @@ var addStory = (async function () {
                 selectize.setValue(tmpOrganisation);
 
             }
+        } catch (error) {
+            console.log("Error fetching organisations:", error);
         }
     }
     async function GetvideoFormatList() {
@@ -273,24 +438,50 @@ var addStory = (async function () {
     }
 
     function RenderFields(slug) {
-        // debugger;
-        fs.readFile(
-            path.join(__dirname, "Files") + "/" + slug + ".json",
-            "utf8",
-            function (err, data) {
-                var JSON_Obj = JSON.parse(data);
-               // debugger;
-                var finalHtml = ParseToElement(JSON_Obj);
-                $("#divJson").html(finalHtml.join(" "));
-                GetCategoryList();
-
-                GetvideoFormatList();
-                GetInstructorList();
-                GetLocationList();
-                GetOrganisationList();
-                // $("body").toggleClass("loaded");
+        var filePath = path.join(__dirname, "Files") + "/" + slug + ".json";
+        fs.readFile(filePath, "utf8", function (err, data) {
+            if (err) {
+                console.error("RenderFields read error:", err);
+                $("#divJson").html(
+                    '<div class="alert alert-danger">Could not load form file: ' +
+                        String(err.message || err) +
+                        "</div>"
+                );
+                dialog.showErrorBox(
+                    "Form load error",
+                    "Could not read " + filePath + "\n" + (err.message || String(err))
+                );
+                return;
             }
-        );
+            var JSON_Obj;
+            try {
+                JSON_Obj = JSON.parse(data);
+            } catch (parseErr) {
+                console.error("RenderFields JSON error:", parseErr);
+                $("#divJson").html(
+                    '<div class="alert alert-danger">Invalid JSON in form file: ' +
+                        filePath +
+                        "</div>"
+                );
+                dialog.showErrorBox("Form load error", "Invalid JSON in " + filePath);
+                return;
+            }
+            if (!Array.isArray(JSON_Obj)) {
+                $("#divJson").html(
+                    '<div class="alert alert-danger">Form file must contain a JSON array.</div>'
+                );
+                dialog.showErrorBox("Form load error", filePath + " must be a JSON array.");
+                return;
+            }
+            var finalHtml = ParseToElement(JSON_Obj);
+            $("#divJson").html(finalHtml.join(" "));
+            GetCategoryList();
+
+            GetvideoFormatList();
+            GetInstructorList();
+            GetLocationList();
+            GetOrganisationList();
+        });
     }
 
     function ParseToElement(JSON_Obj) {
@@ -467,7 +658,7 @@ var addStory = (async function () {
         tmpTopStory = true;
         validaton(GenerateStory, async function (result) {
             if (result.cansave) {
-                const checkResponse = await fetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/${GenerateStory.slug}`);
+                const checkResponse = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/${GenerateStory.slug}`);
                 let checkData = {};
                 try {
                     checkData = await checkResponse.json();
@@ -476,7 +667,7 @@ var addStory = (async function () {
                 }
 
                 if (checkData.error === "Story not found" || editSlug !== "") {
-                    const response = await fetch(editSlug !== "" ? "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/" + editSlug : "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories", {
+                    const response = await apiFetch(editSlug !== "" ? "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/" + editSlug : "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories", {
                         method: editSlug !== "" ? "PUT" : "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -487,8 +678,10 @@ var addStory = (async function () {
                     console.log("API Response:", meta);
 
                     const locationVal = $("#divJson #ddl_location").val();
+                    
+                    /*
                     if (locationVal && locationVal !== "NoLocation") {
-                        const addLocationResponse = await fetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/location-detail/${locationVal}`, {
+                        const addLocationResponse = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations/${locationVal}`, {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",
@@ -498,11 +691,12 @@ var addStory = (async function () {
                         const locationMeta = await addLocationResponse.json();
                         console.log("Location Detail API Response:", locationMeta);
                     }
+                    */
 
                     const categoryVal = $("#divJson #ddl_ddlcategory").val();
                     if (categoryVal && categoryVal !== "") {
-                        const addCategoryResponse = await fetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/category-detail/${categoryVal}`, {
-                            method: "POST",
+                        const addCategoryResponse = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories/${categoryVal}`, {
+                            method: "PUT",
                             headers: {
                                 "Content-Type": "application/json",
                             },
@@ -528,30 +722,29 @@ var addStory = (async function () {
                     }
                     // Potential TODO: Handle Update (PUT) here if intended.
                 }
-                // for (var key in templateTop) {
-                //     templateTop[key] = GenerateStory[key];
-                // }
+                for (var key in templateTop) {
+                    templateTop[key] = GenerateStory[key];
+                }
 
-                //await WriteonTrendingNew(GenerateStory.slug, templateTop); api not get
+                await WriteonTrendingNew(GenerateStory.slug, templateTop);
 
                 // await WriteInMasterIndex(templateTop); now we add same as  add stories
                 // await CheckSlugStory(templateTop.slug);
                 // await RemoveFromUnchecked(templateTop.slug);
 
-                // await saveOninstructor(templateTop);
+                await saveOninstructor(templateTop);
 
                 // await saveOnSubcategory(templateTop);
-                // if ($("#divJson #ddl_location").val() != "" && $("#divJson #ddl_location").val() != undefined && $("#divJson #ddl_location").val() != "NoLocation") {
-
-                //     await saveOnTags_Location(templateTop, $("#divJson #ddl_location").val(), "location");
-                // }
-                // var _tags = $("#divJson").find('[name="tags"]').val();
-                // if (_tags != "") {
-                //     $(_tags.split(",")).each(async function () {
-                //         await saveOnTags_Location(templateTop, this.toString(), "tags");
-                //     });
-                // }
-                // await saveTags_Master(templateTop);
+                if ($("#divJson #ddl_location").val() != "" && $("#divJson #ddl_location").val() != undefined && $("#divJson #ddl_location").val() != "NoLocation") {
+                    await saveOnTags_Location(templateTop, $("#divJson #ddl_location").val(), "location");
+                }
+                var _tags = $("#divJson").find('[name="tags"]').val();
+                if (_tags != "") {
+                    $(_tags.split(",")).each(async function () {
+                        await saveOnTags_Location(templateTop, this.toString(), "tags");
+                    });
+                }
+                await saveTags_Master(templateTop);
                 // if ($('#chk_storiesvisiblity').is(":checked")) {
                 //     await HideFromAllJSON(templateTop);
                 // }
@@ -565,14 +758,14 @@ var addStory = (async function () {
                 //     await saveOnOrganisation(templateTop, _organisations, "organisation");
                 // }
 
-                // $("body").toggleClass("loaded");
-                // const options = { title: "", message: "Story Saved succssfully", detail: "", };
-                // try {
-                //     dialog.showMessageBox(null, options);
-                // } catch (e) {
-                //     console.log(e);
-                //     dialog.showMessageBox(null, options);
-                // }
+                $("body").toggleClass("loaded");
+                const options = { title: "", message: "Story Saved succssfully", detail: "", };
+                try {
+                    dialog.showMessageBox(null, options);
+                } catch (e) {
+                    console.log(e);
+                    dialog.showMessageBox(null, options);
+                }
             } else {
                 $("body").toggleClass("loaded");
                 try {
@@ -586,9 +779,47 @@ var addStory = (async function () {
     });
 
     async function saveTags_Master(templateTop) {
-
         var tagDataMaster = [];
+        try {
+            const response = await apiFetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/master_tag");
+            const result = await response.json();
+            tagDataMaster = result.data || result.master_tags || result || [];
+        } catch (error) {
+            console.error("Error reading master tags via API:", error);
+        }
 
+        if (templateTop.tags) {
+            const existingTags = new Set(tagDataMaster.map(entry => entry.tag));
+            const tagsEn = templateTop.tags.split(',').map(t => t.trim());
+            const tagsHi = (templateTop.tags_hindi || "").split(',').map(t => t.trim());
+
+            tagsEn.forEach((tagEn, index) => {
+                const tagSlug = slugify(tagEn);
+                if (tagSlug && !existingTags.has(tagSlug)) {
+                    tagDataMaster.push({
+                        tag: tagSlug,
+                        title: tagEn,
+                        tag_hindi: tagsHi[index] || ""
+                    });
+                }
+            });
+
+            try {
+                const response = await apiFetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/master_tag", {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(tagDataMaster),
+                });
+                const meta = await response.json();
+                console.log("Master Tag API Response:", meta);
+            } catch (error) {
+                console.error("Error writing master tags via API:", error);
+            }
+        }
+
+        /*
         const IsExistsTagMaster = await existsS3Bucket(`${activePathS3["TagsMaster"]}`);
         if (IsExistsTagMaster.isExists) {
             try {
@@ -627,7 +858,7 @@ var addStory = (async function () {
         const arrayContent = Array.from(tagDataMaster);
         await WriteS3Bucket(arrayContent, `${activePathS3["TagsMaster"]}`, function (tt) { });
         // }
-
+        */
     }
 
     async function validaton(json, callback) {
@@ -667,6 +898,21 @@ var addStory = (async function () {
         if (result["cansave"]) {
             await CheckSlugStory(slug);
             if ($(txtboxSlug).attr("disabled") == undefined) {
+                try {
+                    console.log("Checking slug availability via API...");
+                    const checkResponse = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/${encodeURIComponent(slug)}`);
+                    const checkData = await checkResponse.json();
+                    
+                    if (checkData && checkData.slug && $.trim(checkData.slug.toLowerCase()) == $.trim(slug.toLowerCase())) {
+                        result["cansave"] = false;
+                        result["msg"] = "Slug already exists";
+                        $(txtboxSlug).addClass("error");
+                    }
+                } catch (e) {
+                    console.error("Slug check error:", e);
+                }
+
+                /*
                 let MasterIndexJson = [];
                 const RawMasterJson = await readS3BucketAsync(
                     activePathS3["MasterIndex"],
@@ -855,7 +1101,7 @@ var addStory = (async function () {
                             activePathS3["MasterIndex"]
                         );
                     }
-                }
+                */
             }
         }
         callback(result);
@@ -1361,52 +1607,40 @@ var addStory = (async function () {
     async function CheckSlugStory(slug) {
         for (var i = 0; i < storyAlsoOn.length; i++) {
             console.log("slug start", new Date());
-            var _currentJsonFile = storyAlsoOn[i].file;
-            const IsExists = await existsS3Bucket(_currentJsonFile, i);
-            if (IsExists.isExists) {
-                var _index = parseInt(IsExists.data);
-                const slugResult = await readS3BucketAsync(
-                    storyAlsoOn[_index].file,
-                    ""
-                );
-                if (slugResult.err) {
+            let fileJson = await readStoryFeed(storyAlsoOn[i]);
+            try {
+                var chkbox = $('[name="' + storyAlsoOn[i]["chkbox"] + '"]');
+                var existingCount = parseInt(fileJson.length);
+                var MaxCount = parseInt(configJson[storyAlsoOn[i]["chkbox"]]);
+                if (MaxCount > existingCount) {
+                    storyAlsoOn[i]["CanAdd"] = true;
+                    $(chkbox).removeAttr("disabled");
                 } else {
-                    try {
-                        let fileJson = JSON.parse(slugResult.data);
-                        var chkbox = $('[name="' + storyAlsoOn[_index]["chkbox"] + '"]');
-                        var existingCount = parseInt(fileJson.length);
-                        var MaxCount = parseInt(configJson[storyAlsoOn[_index]["chkbox"]]);
-                        if (MaxCount > existingCount) {
-                            storyAlsoOn[_index]["CanAdd"] = true;
-                            $(chkbox).removeAttr("disabled");
-                        } else {
-                            storyAlsoOn[_index]["CanAdd"] = false;
-                            $(chkbox).attr("disabled", "disabled");
-                        }
-                        var lbl = chkbox.closest("label");
-                        $(lbl).html(
-                            storyAlsoOn[_index]["label"] + " (" + fileJson.length + ") "
-                        );
-                        $(lbl).append(chkbox);
-                        for (var j = 0; j < fileJson.length; j++) {
-                            if (fileJson[j].slug == slug) {
-                                var chktemp = $('[name="' + storyAlsoOn[_index]["chkbox"] + '"]').prop("checked");
-                                if (!tmpTopStory || chktemp) {
-                                    storyAlsoOn[_index]["isExist"] = true;
-                                    storyAlsoOn[_index]["index"] = j;
-                                    storyAlsoOn[_index]["total"] = fileJson.length;
-                                    $('[name="' + storyAlsoOn[_index]["chkbox"] + '"]').prop(
-                                        "checked",
-                                        true
-                                    );
-                                    $(chkbox).removeAttr("disabled");
-                                    break;
-                                }
-                            }
-                        }
-                    } catch (e) { }
+                    storyAlsoOn[i]["CanAdd"] = false;
+                    $(chkbox).attr("disabled", "disabled");
                 }
-            }
+                var lbl = chkbox.closest("label");
+                $(lbl).html(
+                    storyAlsoOn[i]["label"] + " (" + fileJson.length + ") "
+                );
+                $(lbl).append(chkbox);
+                for (var j = 0; j < fileJson.length; j++) {
+                    if (fileJson[j].slug == slug) {
+                        var chktemp = $('[name="' + storyAlsoOn[i]["chkbox"] + '"]').prop("checked");
+                        if (!tmpTopStory || chktemp) {
+                            storyAlsoOn[i]["isExist"] = true;
+                            storyAlsoOn[i]["index"] = j;
+                            storyAlsoOn[i]["total"] = fileJson.length;
+                            $('[name="' + storyAlsoOn[i]["chkbox"] + '"]').prop(
+                                "checked",
+                                true
+                            );
+                            $(chkbox).removeAttr("disabled");
+                            break;
+                        }
+                    }
+                }
+            } catch (e) { }
         }
     }
 
@@ -2212,31 +2446,26 @@ var addStory = (async function () {
     }
 
     async function WriteonTrendingNew(slug, templateTop) {
-        //var mainCategory = activePathS3["category-index"] + $('#ddl_ddlcategory').val() + ".json";
-        //var isExist = false;
-        //var Index = "-1";
+        for (var i = 0; i < storyAlsoOn.length; i++) {
+            var feed = storyAlsoOn[i];
+            if (!$('[name="' + feed["chkbox"] + '"]').is(":checked")) {
+                continue;
+            }
 
-        //if (storyAlsoOn.indexOf(mainCategory) == -1) {
-        //    const IsExists = await existsS3Bucket(mainCategory, "");
-        //    if (IsExists.isExists) {
-        //        var mainCategoryResult = await readS3BucketAsync(mainCategory, "");
-        //        if (mainCategoryResult.err) { }
-        //        else {
-        //            var MainCategory = JSON.parse(mainCategoryResult.data);
-        //            for (var i = 0; i < MainCategory.length; i++) {
-        //                if (MainCategory[i].slug == templateTop.slug) {
-        //                    isExist = true;
-        //                    Index = i;
-        //                    break;
-        //                }
-        //            }
-        //            storyAlsoOn.push({ "chkbox": $('#ddl_ddlcategory').val(), "file": mainCategory, "isExist": isExist, "index": Index, "manual": true });
-        //        }
-        //    }
-        //    else {
-        //        storyAlsoOn.push({ "chkbox": $('#ddl_ddlcategory').val(), "file": mainCategory, "isExist": false, "index": "-1", "manual": true });
-        //    }
-        //}
+            const fileJson = await readStoryFeed(feed);
+            const existingIndex = fileJson.findIndex(item => item.slug == templateTop.slug);
+
+            if (existingIndex >= 0) {
+                fileJson[existingIndex] = templateTop;
+            } else {
+                fileJson.push(templateTop);
+            }
+
+            const meta = await writeStoryFeed(feed, fileJson);
+            console.log(feed["label"] + " API Response:", meta);
+        }
+
+        /*
         for (var i = 0; i < storyAlsoOn.length; i++) {
             var trand = storyAlsoOn[i];
             if ($('[name="' + trand["chkbox"] + '"]').is(":checked") || trand["manual"]) {
@@ -2257,9 +2486,10 @@ var addStory = (async function () {
                 if (topJson.length == 0) {
                     topJson = [templateTop];
                 } else {
-                    if (storyAlsoOn[_index]["isExist"]) {
-                        topJson[storyAlsoOn[_index]["index"]] = templateTop;
-                    } else {
+                    var isExists = topJson.filter(function (itm) {
+                        return itm.slug == templateTop.slug;
+                    });
+                    if (isExists.length == 0) {
                         topJson.push(templateTop);
                     }
                 }
@@ -2296,7 +2526,7 @@ var addStory = (async function () {
                     }
                 }
             }
-        }
+        */
     }
     const WriteInMasterIndex = async (templateTop) => {
         var categoryList = [];
@@ -2355,11 +2585,28 @@ var addStory = (async function () {
 
 
     let saveOninstructor = async (templateTop) => {
-        // debugger;
-        // chk_consent_received
-        // chk_show_contact
         let _instructor = $('#ddl_instructor').val();
-        if (_instructor != "noinstructor") {
+        if (_instructor != "noinstructor" && _instructor != null && _instructor != "") {
+            try {
+                const response = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors/${_instructor}`, {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        "story": [templateTop]
+                    }),
+                });
+                const meta = await response.json();
+                console.log("Instructor Story API Response:", meta);
+            } catch (error) {
+                console.error("Error saving instructor story via API:", error);
+            }
+
+            /*
+            // debugger;
+            // chk_consent_received
+            // chk_show_contact
             //if (Need_trending_in.indexOf(type) != -1) {
             let instructorDetail = null;
             var submeta = await readS3BucketAsync(`${activePathS3["instructorPath"]}${_instructor}.json`, "");
@@ -2395,6 +2642,7 @@ var addStory = (async function () {
 
                 await WriteS3Bucket(instructorDetail, `${activePathS3["instructorPath"]}${_instructor}.json`, function (tt) { });
             }
+            */
         }
     }
     let saveOnSubcategory = async (templateTop) => {
@@ -2529,124 +2777,91 @@ var addStory = (async function () {
             .replace(/\s+/g, '-');     // Replace spaces with hyphens
     }
 
-    let saveOnTags_Location = async (templateTop, filename, path) => {
+        let saveOnTags_Location = async (templateTop, filename, path) => {
         if (path == "tags") {
-            //individual tags
             filename = $.trim(filename.toLowerCase()).replace(/ /g, "_");
-            path = $.trim(path).replace(/ /g, "");
-            var tagData = [];
-            const IsExists = await existsS3Bucket(`${activePathS3[path]}/${$.trim(filename)}.json`);
-            if (IsExists.isExists) {
-                try {
-                    var submeta = await readS3BucketAsync(`${activePathS3[path]}/${$.trim(filename)}.json`, "");
-                    if (submeta.err) {
-                        console.log(submeta.err);
-                    } else {
-                        tagData = JSON.parse(submeta.data);
-                    }
-                } catch (e) {
-                    console.log(e);
-                }
+            let tagData = [];
+            try {
+                const getResponse = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/tag_detail?tag=${filename}`);
+                const result = await getResponse.json();
+                tagData = result.data || result || [];
+            } catch (e) {
+                console.error("Error reading tag detail via API:", e);
             }
-            if (tagData == undefined) {
-                tagData = [];
-            }
-            var isTagExists = 0;
-            if (tagData.length > 0) {
-                isTagExists = tagData.filter(function (element) {
-                    return element["slug"] == templateTop.slug;
-                });
-            }
-            if (isTagExists == 0) {
+
+            if (!Array.isArray(tagData)) tagData = [];
+
+            const index = tagData.findIndex(item => item.slug === templateTop.slug);
+            if (index !== -1) {
+                tagData[index] = templateTop;
+            } else {
                 tagData.push(templateTop);
             }
-            else {
-                for (var i = 0; i < tagData.length; i++) {
-                    if (tagData[i]["slug"] == templateTop.slug) {
-                        tagData[i] = templateTop;
-                        break;
-                    }
-                }
-            }
-            await WriteS3Bucket(tagData, `${activePathS3[path]}/${$.trim(filename)}.json`, function (tt) { });
 
+            try {
+                const response = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/tag_detail?tag=${filename}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(tagData)
+                });
+                const meta = await response.json();
+                console.log("Tag Detail API Response:", meta);
+            } catch (e) {
+                console.error("Error writing tag detail via API:", e);
+            }
         }
+        
         if (path == "location") {
-            // debugger;
-            if (perviousLocation != "" && perviousLocation != undefined && perviousLocation != "Select Location" && perviousLocation != filename) {
-                let currentlength = 0;
-                const IsExists = await existsS3Bucket(`${activePathS3[path]}/${$.trim(perviousLocation)}.json`);
-                if (IsExists.isExists) {
-                    try {
-                        var preLocationsubmeta = await readS3BucketAsync(`${activePathS3[path]}/${$.trim(perviousLocation)}.json`, "");
-                        if (preLocationsubmeta.err) {
-                            console.log(preLocationsubmeta.err);
-                        }
-                        else {
-                            let previousLocationData = [];
-                            previousLocationData = JSON.parse(preLocationsubmeta.data);
-                            currentlength = previousLocationData.length;
-                            previousLocationJSONObj = previousLocationData.filter(function (itm) {
-                                return itm.slug != templateTop.slug;
+            filename = $.trim(filename.toLowerCase()).replace(/ /g, "_");
+            const normalizePervious = (perviousLocation || "").toLowerCase().trim().replace(/ /g, "_");
+
+            if (normalizePervious != "" && normalizePervious != "select_location" && normalizePervious != "nolocation" && normalizePervious != filename) {
+                try {
+                    const preResponse = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations/${normalizePervious}`);
+                    const preResult = await preResponse.json();
+                    let previousLocationData = preResult.locations || preResult.data || preResult || [];
+                    if (Array.isArray(previousLocationData)) {
+                        const filteredData = previousLocationData.filter(itm => itm.slug != templateTop.slug);
+                        if (filteredData.length != previousLocationData.length) {
+                            await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations/${normalizePervious}`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(filteredData)
                             });
-
+                            console.log("Location removed from previous file via API");
                         }
-                        if (previousLocationJSONObj == undefined) {
-                            previousLocationJSONObj = [];
-                        }
-                        if (previousLocationJSONObj != null && previousLocationJSONObj.length > 0) {
-                            var meta = await WriteS3Bucket1(previousLocationJSONObj, `${activePathS3[path]}/${$.trim(perviousLocation)}.json`, function (tt) { });
-                            console.log("Location removed from pervious file ");
-                        }
-                        else {
-                            //case when pervious location having min story like les than 5 then  previousLocationJSONObj can be empty
-                            if (currentlength < 5) {
-                                if (previousLocationJSONObj != null && previousLocationJSONObj.length == 0) {
-                                    previousLocationJSONObj = [];
-                                    var meta = await WriteS3Bucket1(previousLocationJSONObj, `${activePathS3[path]}/${$.trim(perviousLocation)}.json`, function (tt) { });
-                                    console.log("Location removed from pervious file ");
-                                }
-                            }
-
-                        }
-
-                    } catch (e) {
-                        console.log(e);
                     }
+                } catch (e) {
+                    console.error("Error removing from previous location via API:", e);
                 }
             }
-            let newlocationstory = [];
-            var location = $('#ddl_location').find('option:selected').val();
 
-            IsExists = await existsS3Bucket(activePathS3["location"] + "/" + location + ".json");
-            if (IsExists.isExists) {
-                var slugResult = await readS3BucketAsync(activePathS3["location"] + "/" + location + ".json", "");
-                if (slugResult.err) {
+            try {
+                const response = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations/${filename}`);
+                const result = await response.json();
+                let locationData = result.locations || result.data || result || [];
+                if (!Array.isArray(locationData)) locationData = [];
 
+                const index = locationData.findIndex(item => item.slug === templateTop.slug);
+                if (index !== -1) {
+                    locationData[index] = templateTop;
+                } else {
+                    locationData.push(templateTop);
                 }
-                else {
-                    let AllStory = JSON.parse(slugResult.data);
-                    //newlocationstory.push(AllStory);
-                    let current_Story = AllStory.filter(function (data) { return data.slug == templateTop.slug; });
-                    if (current_Story != null && current_Story.length > 0) {
-                        const index = AllStory.findIndex(item => item.slug === templateTop.slug);
-                        if (index !== -1) {
-                            AllStory[index] = templateTop;
-                        }
-                    }
-                    else {
 
-                        AllStory.push(templateTop);
-                        await WriteS3Bucket(AllStory, activePathS3["location"] + "/" + location + ".json", function (tt) { });
-                    }
-                }
-            }
-            else {
-                newlocationstory.push(templateTop);
-                await WriteS3Bucket(newlocationstory, activePathS3["location"] + "/" + location + ".json", function (tt) { });
-
+                const writeResponse = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations/${filename}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(locationData)
+                });
+                const meta = await writeResponse.json();
+                console.log("Location Detail API Response:", meta);
+                
+                // Update the global perviousLocation after successful save
+                perviousLocation = filename;
+            } catch (e) {
+                console.error("Error saving to new location via API:", e);
             }
         }
     }
-
 })();

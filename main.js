@@ -24,8 +24,8 @@ let win;
 global.sharedObj = {
     pathName: "C:\\WM_Json",
     currentStory: "default",
-    S3filepath: "stories_workmob/confjson/", //"stories_workmob/confjson/", //config
-    // S3filepath: "stories_workmob/config/", //"stories_workmob/confjson/", //config
+    //S3filepath: "stories_workmob/confjson/", //"stories_workmob/confjson/", //config
+     S3filepath: "stories_workmob/config/", //"stories_workmob/confjson/", //config
 };
 
 let child;
@@ -141,12 +141,37 @@ app.on("ready", function () {
             },
         });
         remoteMain.enable(child.webContents);
+
+        let slugSent = false;
+        function sendReceiveSlug() {
+            if (slugSent || child.isDestroyed()) {
+                return;
+            }
+            slugSent = true;
+            ipcMain.removeListener("addStory-renderer-ready", onRendererReady);
+            child.webContents.send("receiveSlug", data);
+        }
+
+        function onRendererReady(e) {
+            if (child.isDestroyed() || e.sender !== child.webContents) {
+                return;
+            }
+            sendReceiveSlug();
+        }
+
+        ipcMain.on("addStory-renderer-ready", onRendererReady);
+        child.once("closed", () => {
+            ipcMain.removeListener("addStory-renderer-ready", onRendererReady);
+        });
+
         child.once("ready-to-show", () => {
             child.webContents.toggleDevTools();
-            setTimeout(function () {
-                child.webContents.send("receiveSlug", data);
-            }, 500);
         });
+        // Fire after document + scripts load so ipcRenderer.on("receiveSlug") is registered.
+        child.webContents.once("did-finish-load", () => {
+            setTimeout(sendReceiveSlug, 120);
+        });
+
         child.loadFile(data.pagename);
     });
     ipcMain.on("closeChild", (evt, data) => {

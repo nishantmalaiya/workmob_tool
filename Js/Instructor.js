@@ -76,7 +76,8 @@ async function GetinstructorList(offset, limit) {
         // $("#divInstructor").html(renderHeader());
         hasMore = data.hasMore;
         lastKey = data.lastKey;
-        instructorList = data.instructors;  // Assuming the API returns the data directly (no need for JSON.parse if it's already parsed)
+        instructorList = data.instructors; 
+        console.log('instructorList',instructorList); // Assuming the API returns the data directly (no need for JSON.parse if it's already parsed)
         if (instructorList.length > 0) {
             allRecords = [...allRecords, ...instructorList]; // Update all records
             RenderInstructor(instructorList); // Render the new records
@@ -204,14 +205,20 @@ $("#btnSave").click(function () {
         if (cansave.cansave) {
             var finalJson = [];
             var item = cansave.item;
+            item.Id = item.user_id; // Ensure consistent ID field for API
+            
             $("body").toggleClass("loaded");
+            /*
             let RawinstructorJson = await readS3BucketAsync(activePathS3["instructor"], "");
             if (RawinstructorJson.err) {
                 console.log(RawinstructorJson.err);
             } else {
                 finalJson = JSON.parse(RawinstructorJson.data);
             }
+            */
             item = await saveInFiberBase(item);
+            
+            /*
             if ($("#hdnInstructor").val() != "") {
                 var currentInstructor = finalJson.filter(function (ele) {
                     return ele["user_id"] == cansave.item["user_id"];
@@ -245,12 +252,34 @@ $("#btnSave").click(function () {
             } else {
                 finalJson.push(cansave.item);
             }
+            */
+
+            // New API POST call
+            try {
+                console.log("Saving instructor via API...", item);
+                const apiResponse = await fetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors", {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(item)
+                });
+                if (!apiResponse.ok) {
+                    const errText = await apiResponse.text();
+                    throw new Error(`API Save failed: ${apiResponse.status} - ${errText}`);
+                }
+                console.log("API Save successful");
+            } catch (apiError) {
+                console.error("API Save Error:", apiError);
+                alert("Error saving to API: " + apiError.message);
+            }
+
+            /*
             await WriteS3Bucket(
                 cansave.item,
                 `${activePathS3["instructorPath"]}${item["user_id"]}.json`
             );
             const meta = await WriteS3Bucket(finalJson, activePathS3["instructor"]);
             console.log(meta);
+            */
             $("body").toggleClass("loaded");
             const options = { title: "", message: "Instructor Saved succssfully", detail: "" };
             try {
@@ -429,6 +458,7 @@ async function validation(cb) {
 
     }
     if (cansave && $("#hdnInstructor").val() == "") {
+        /*
         let RawinstructorJson = await readS3BucketAsync(`${activePathS3["instructorPath"]}${item["user_id"]}.json`, "");
         if (RawinstructorJson.err) {
             console.log(RawinstructorJson.err);
@@ -436,6 +466,19 @@ async function validation(cb) {
             finalJson = JSON.parse(RawinstructorJson.data);
             msg = "This Id is already exists ";
             cansave = false;
+        }
+        */
+        try {
+            console.log("Checking mobile number availability...");
+            const url = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors?mobile_no=${encodeURIComponent(item["mobile_no"])}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data.instructors && data.instructors.length > 0) {
+                msg = "This Mobile No. already exists";
+                cansave = false;
+            }
+        } catch (err) {
+            console.error("Number validation error:", err);
         }
     }
     var result = {
@@ -570,17 +613,38 @@ $('#txtInstructorNo').on('keyup', function () {
 // }
 
 async function SearchOnInstructor() {
-    globalCount = 0; // NEW: Reset global count for search
+    globalCount = 0; // Reset global count for search
     let story = [];
     let instructorno = $('#txtInstructorNo').val().trim();
+    
     if (instructorno) {
-        story = allRecords.filter(function (i) {  // CHANGED: Use allRecords instead of instructorList
-            return (i.mobile_no !== undefined && i.mobile_no.toString().includes(instructorno)) || (i.name !== undefined && i.name.toString().includes(instructorno));
-        });
+        // If it's a 10-digit number or more, call the specific mobile_no API
+        if (/^\d{10,}$/.test(instructorno)) {
+            try {
+                $("body").toggleClass("loaded");
+                const url = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors?mobile_no=${encodeURIComponent(instructorno)}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                story = data.instructors || [];
+                $("body").toggleClass("loaded");
+            } catch (err) {
+                console.log("Search error:", err);
+                // Fallback to local filter if API fails
+                story = allRecords.filter(function (i) {
+                    return (i.mobile_no !== undefined && i.mobile_no.toString().includes(instructorno)) || (i.name !== undefined && i.name.toString().includes(instructorno));
+                });
+            }
+        } else {
+            // Local filter for name or partial mobile number from already loaded records
+            story = allRecords.filter(function (i) {
+                return (i.mobile_no !== undefined && i.mobile_no.toString().includes(instructorno)) || (i.name !== undefined && i.name.toString().includes(instructorno));
+            });
+        }
     } else {
-        story = allRecords;  // CHANGED: Use allRecords
+        story = allRecords;
     }
-    $("#divInstructor").html(renderHeader());  // NEW: Clear and add header for re-render
+    
+    $("#divInstructor").html(renderHeader()); 
     await RenderInstructor(story);
 }
 

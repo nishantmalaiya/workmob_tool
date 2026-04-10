@@ -442,36 +442,66 @@ $('#txtSlug').on('blur', function () {
 });
 async function ApplyFilter() {
   var story = JSON_Obj;
-  if ($('#txtSlug').val() == "") {
+  if ($('#txtName').val().trim() != "") {
+    const name = $('#txtName').val().trim();
+    if (name.length <= 3) {
+      dialog.showErrorBox('Invalid Name', "Please enter more than 3 characters to search by name.");
+      return;
+    }
+    try {
+      $('body').removeClass('loaded');
+      const response = await fetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories?name=${name}`);
+      const checkData = await response.json();
+      $('body').addClass('loaded');
+
+      if (checkData.error === "Story not found") {
+        dialog.showErrorBox('Name not exists', "Please enter valid name");
+        return;
+      }
+      else {
+        story = Array.isArray(checkData) ? checkData : [checkData];
+        $('#divStory').html(RenderStory(story).join(" "));
+      }
+    } catch (e) {
+      $('body').addClass('loaded');
+      console.log("Error checking story:", e);
+      dialog.showErrorBox('Error', "An error occurred while fetching the story.");
+    }
+        // story = story.filter(function (i) {
+        //   return i.name.toLowerCase().indexOf($('#txtName').val().toLowerCase()) != -1;
+        // });
+      }
+ else if ($('#txtSlug').val() == "") {
     if (JSON_Obj) {
       if ($('#ddlCity').val() != "") {
         story = JSON_Obj.filter(function (i) {
           return i.location == $('#ddlCity').val();
         });
       }
-      if ($('#txtName').val() != "") {
-        story = story.filter(function (i) {
-          return i.name.toLowerCase().indexOf($('#txtName').val().toLowerCase()) != -1;
-        });
-      }
+      
       $('#divStory').html(RenderStory(story).join(" "));
     }
   }
+
+
   else {
     const slug = $('#txtSlug').val();
     try {
+      $('body').removeClass('loaded');
       const response = await fetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/${slug}`);
       const checkData = await response.json();
+      $('body').addClass('loaded');
 
       if (checkData.error === "Story not found") {
         dialog.showErrorBox('Slug not exists', "Please enter valid slug");
         return;
       }
       else {
-        story = [checkData];
+        story = Array.isArray(checkData) ? checkData : [checkData];
         $('#divStory').html(RenderStory(story).join(" "));
       }
     } catch (e) {
+      $('body').addClass('loaded');
       console.log("Error checking story:", e);
       dialog.showErrorBox('Error', "An error occurred while fetching the story.");
     }
