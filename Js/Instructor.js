@@ -16,7 +16,45 @@ let allRecords = []; // To store fetched records
 let isFetching = false; 
 let hasMore = false;
 let lastKey = '';
-let globalCount = 0; 
+let globalCount = 0;
+
+/** Set to false before release — fills add-user popup with dummy data for local testing */
+const TEST_PREFILL_ADD_INSTRUCTOR = true;
+
+function prefillAddInstructorTestData() {
+   
+    $("#txtId").val("8770117732");
+    $("#txtMobileNo").val("8770117732");
+    $("#txtName").val("Test Instructor");
+    $("#txtJobTitle").val("Developer");
+    $("#txtCompanyName").val("Workmob");
+    $("#txtLocation").val("Test City");
+    $("#txtUserGuid").val("877011773212345");
+    $("#txtName_hindi").val("टेस्ट");
+    $("#txtJobTitle_hindi").val("डेवलपर");
+    $("#txtCompanyName_hindi").val("वर्कमोब");
+    $("#txtLocation_hindi").val("टेस्ट");
+    $("#txtAllow_go_live").prop("checked", false);
+    $("#txtlive_profile_pic_card").val("");
+    $("#hdnUser_name").val("");
+}
+
+function parseInstructorApiBody(text) {
+    if (!text || !String(text).trim()) return {};
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        return {};
+    }
+}
+
+function isInstructorNotFoundError(body) {
+    return body && body.error === "Instructor not found";
+}
+
+/** Same base for list/search/validation/save — path vs ?mobile_no= are different API routes */
+const INSTRUCTORS_API_BASE = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors";
+
 locationMasterList();
 
 async function locationMasterList() {
@@ -61,7 +99,7 @@ async function locationMasterList() {
 async function GetinstructorList(offset, limit) {
     if (isFetching) return; // Prevent overlapping requests
     isFetching = true;
-    $("body").toggleClass("loaded");
+    $("body").removeClass("loaded");
     
     // Replace S3 read with API call
     // let response;
@@ -71,7 +109,6 @@ async function GetinstructorList(offset, limit) {
             throw new Error(`API request failed with status ${response.status}`);
         }
         const data = await response.json();
-        $('body').toggleClass('loaded');
         // Proceed with rendering (similar to original logic)
         // $("#divInstructor").html(renderHeader());
         hasMore = data.hasMore;
@@ -91,6 +128,7 @@ async function GetinstructorList(offset, limit) {
         $("#divInstructor").html("");
         console.log(error.message);
     } finally {
+        $("body").addClass("loaded");
         if (hasMore) {
             isFetching = false; // Reset fetching status
         } else {
@@ -138,7 +176,7 @@ async function RenderInstructor(instructor) {
             <div class=\"col-md-1\"><h5>${this.location}</h5></div>
             <div class=\"col-md-1\"><h5>${this.mobile_no}</h5></div>
            <div class=\"col-md-1\"><h5>${this.user_guid}</h5></div>
-            <div class=\"col-md-1\"><a href=\"#\" data-toggle=\"modal\" data-target=\"#delete-file-modal\" onclick=\"editInstructor('${this.user_id}')\">Edit</a></div>
+            <div class=\"col-md-1\"><a href=\"#\" data-toggle=\"modal\" data-target=\"#delete-file-modal\" onclick=\"editInstructor('${this.user_id}','${this.mobile_no}')\">Edit</a></div>
             <div class=\"col-md-1\"><a href=\"#\" onclick=\"deleteInstructor('${this.user_id}',this)\">Delete</a></div>
             </div>`);
         } else {
@@ -171,31 +209,39 @@ async function RenderInstructor(instructor) {
 
 async function deleteInstructor(user_id, _self) {
     if (confirm("Are you sure you want to delete this?")) {
-        $(_self).closest(".storycard").remove();
-        var instructorList;
-        let meta = await readS3BucketAsync(activePathS3["instructor"], "");
-        if (meta.err) {
-            console.log(meta.err);
-            return false;
-        } else {
-            instructorList = JSON.parse(meta.data);
+        $("body").removeClass("loaded");
+        try {
+            const url = `${INSTRUCTORS_API_BASE}/${encodeURIComponent(user_id)}`;
+            console.log("Deleting instructor via API...", url);
+            const response = await fetch(url, { method: "DELETE" });
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`API Delete failed: ${response.status} - ${text}`);
+            }
+            console.log("API Delete successful");
+
+            // Remove from Firebase
+            await firebase.database().ref("WMUserInfo/" + user_id).remove();
+            console.log("Firebase Record removed");
+
+            // UI removal
+            $(_self).closest(".instructorList").remove();
+            
+            // Remove from local cache
+            allRecords = allRecords.filter(item => item.user_id != user_id);
+            
+            const options = { title: "", message: "Instructor Deleted successfully", detail: "" };
+            try {
+                dialog.showMessageBox(null, options);
+            } catch (e) {
+                console.log(e);
+            }
+        } catch (error) {
+            console.error("Delete Error:", error);
+            alert("Error deleting instructor: " + error.message);
+        } finally {
+            $("body").addClass("loaded");
         }
-        instructorList = instructorList.filter(function (elem) {
-            return elem["user_id"] != user_id;
-        });
-        const SaveResponce = await WriteS3Bucket(
-            instructorList,
-            activePathS3["instructor"]
-        );
-        console.log(SaveResponce);
-        var DeleteResponce = await DeleteS3Bucket(
-            `${activePathS3["instructorPath"]}${user_id}.json`
-        );
-        console.log(DeleteResponce);
-        firebase.database().ref("WMUserInfo/" + user_id).remove();
-        $("#divInstructor").html(renderHeader());
-        $("body").toggleClass("loaded");
-        await RenderInstructor(JSON.parse(instructorList));
     } else {
         return false;
     }
@@ -207,7 +253,6 @@ $("#btnSave").click(function () {
             var item = cansave.item;
             item.Id = item.user_id; // Ensure consistent ID field for API
             
-            $("body").toggleClass("loaded");
             /*
             let RawinstructorJson = await readS3BucketAsync(activePathS3["instructor"], "");
             if (RawinstructorJson.err) {
@@ -216,8 +261,9 @@ $("#btnSave").click(function () {
                 finalJson = JSON.parse(RawinstructorJson.data);
             }
             */
-            item = await saveInFiberBase(item);
-            
+            $("body").removeClass("loaded");
+            try {
+            // REST instructor API runs first so it always executes (Firebase below can throw and previously skipped this block)
             /*
             if ($("#hdnInstructor").val() != "") {
                 var currentInstructor = finalJson.filter(function (ele) {
@@ -254,22 +300,72 @@ $("#btnSave").click(function () {
             }
             */
 
-            // New API POST call
+            // GET by mobile_no; if not found / "Instructor not found", POST; else PUT — POST again if PUT returns not found
+            var instructorApiSavedOk = false;
             try {
                 console.log("Saving instructor via API...", item);
-                const apiResponse = await fetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors", {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(item)
-                });
+                const mobileParam = encodeURIComponent(item["mobile_no"]);
+                const checkUrl = `${INSTRUCTORS_API_BASE}?mobile_no=${mobileParam}`;
+                const checkResponse = await fetch(checkUrl, { method: "GET" });
+                const checkText = await checkResponse.text();
+                const checkData = parseInstructorApiBody(checkText);
+
+                if (!checkResponse.ok) {
+                    if (!isInstructorNotFoundError(checkData)) {
+                        throw new Error(`Instructor check failed: ${checkResponse.status} - ${checkText}`);
+                    }
+                }
+
+                let exists =
+                    !isInstructorNotFoundError(checkData) &&
+                    checkData.instructors &&
+                    Array.isArray(checkData.instructors) &&
+                    checkData.instructors.length > 0;
+                if (isInstructorNotFoundError(checkData)) {
+                    exists = false;
+                }
+
+                const postCreate = function () {
+                    return fetch(`${INSTRUCTORS_API_BASE}?mobile_no=${mobileParam}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(item),
+                    });
+                };
+
+                let apiResponse;
+                let usedPut = false;
+                if (!exists) {
+                    apiResponse = await postCreate();
+                } else {
+                    usedPut = true;
+                    apiResponse = await fetch(INSTRUCTORS_API_BASE, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(item),
+                    });
+                }
+
+                let apiText = await apiResponse.text();
+                if (!apiResponse.ok && isInstructorNotFoundError(parseInstructorApiBody(apiText)) && usedPut) {
+                    console.log("PUT returned Instructor not found — creating with POST");
+                    usedPut = false;
+                    apiResponse = await postCreate();
+                    apiText = await apiResponse.text();
+                }
+
                 if (!apiResponse.ok) {
-                    const errText = await apiResponse.text();
-                    throw new Error(`API Save failed: ${apiResponse.status} - ${errText}`);
+                    throw new Error(`API Save failed: ${apiResponse.status} - ${apiText}`);
                 }
                 console.log("API Save successful");
+                instructorApiSavedOk = true;
             } catch (apiError) {
                 console.error("API Save Error:", apiError);
                 alert("Error saving to API: " + apiError.message);
+            }
+
+            if (instructorApiSavedOk) {
+                item = await saveInFiberBase(item);
             }
 
             /*
@@ -280,13 +376,17 @@ $("#btnSave").click(function () {
             const meta = await WriteS3Bucket(finalJson, activePathS3["instructor"]);
             console.log(meta);
             */
-            $("body").toggleClass("loaded");
-            const options = { title: "", message: "Instructor Saved succssfully", detail: "" };
-            try {
-                dialog.showMessageBox(null, options);
-            } catch (e) {
-                console.log(e);
-                dialog.showMessageBox(null, options);
+            if (instructorApiSavedOk) {
+                const options = { title: "", message: "Instructor Saved succssfully", detail: "" };
+                try {
+                    dialog.showMessageBox(null, options);
+                } catch (e) {
+                    console.log(e);
+                    dialog.showMessageBox(null, options);
+                }
+            }
+            } finally {
+                $("body").addClass("loaded");
             }
         } else {
             alert(cansave.msg);
@@ -327,20 +427,37 @@ $("#btnClose").click(function () {
     $("#divModel").modal("hide");
 });
 
-async function editInstructor(user_id) {
+async function editInstructor(user_id, mobile_no) {
     let _currentInstructor;
-    let RawinstructorJson = await readS3BucketAsync(activePathS3["instructor"], "");
-    if (RawinstructorJson.err) {
-        console.log(RawinstructorJson.err);
-        return false;
-    } else {
-        _currentInstructor = JSON.parse(RawinstructorJson.data);
+    if (!mobile_no) {
+        let local = allRecords.find(i => i.user_id == user_id);
+        mobile_no = local ? local.mobile_no : user_id;
     }
-    _currentInstructor = instructorList.filter(function (item) {
-        return item.user_id == user_id;
-    });
-    if (_currentInstructor.length > 0) {
-        _currentInstructor = _currentInstructor[0];
+
+    $("body").removeClass("loaded");
+    try {
+        const url = `${INSTRUCTORS_API_BASE}?mobile_no=${encodeURIComponent(mobile_no)}`;
+        const response = await fetch(url);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.instructors && data.instructors.length > 0) {
+                // If there is only one match, data.instructors[0] is our record.
+                // If multiple, try to match by user_id if possible.
+                _currentInstructor = data.instructors.find(i => i.user_id == user_id) || data.instructors[0];
+            }
+        }
+    } catch (err) {
+        console.error("Error fetching instructor data:", err);
+    } finally {
+        $("body").addClass("loaded");
+    }
+
+    // Fallback to local records if API fails or returns no data
+    if (!_currentInstructor) {
+        _currentInstructor = allRecords.find(item => item.user_id == user_id);
+    }
+
+    if (_currentInstructor) {
         $("#divModel").find(".modal-title").text("Edit Category");
         $("#divModel").find("#txtId").val(_currentInstructor["user_id"]);
         $("#divModel").find("#txtName").val(_currentInstructor["name"]);
@@ -470,10 +587,13 @@ async function validation(cb) {
         */
         try {
             console.log("Checking mobile number availability...");
-            const url = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors?mobile_no=${encodeURIComponent(item["mobile_no"])}`;
+            const url = `${INSTRUCTORS_API_BASE}?mobile_no=${encodeURIComponent(item["mobile_no"])}`;
             const response = await fetch(url);
-            const data = await response.json();
-            if (data.instructors && data.instructors.length > 0) {
+            const text = await response.text();
+            const data = parseInstructorApiBody(text);
+            if (isInstructorNotFoundError(data)) {
+                // mobile not registered — OK to add (cansave stays true)
+            } else if (data.instructors && data.instructors.length > 0) {
                 msg = "This Mobile No. already exists";
                 cansave = false;
             }
@@ -493,6 +613,9 @@ $("#btnAddInstructor").click(function () {
     celarInputs();
     $("#hdnInstructor").val("");
     $("#divModel").find(".modal-title").text("Add New Instructor");
+    if (TEST_PREFILL_ADD_INSTRUCTOR) {
+        prefillAddInstructorTestData();
+    }
     $("#divModel").modal("show");
 });
 
@@ -620,19 +743,20 @@ async function SearchOnInstructor() {
     if (instructorno) {
         // If it's a 10-digit number or more, call the specific mobile_no API
         if (/^\d{10,}$/.test(instructorno)) {
+            $("body").removeClass("loaded");
             try {
-                $("body").toggleClass("loaded");
                 const url = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors?mobile_no=${encodeURIComponent(instructorno)}`;
                 const response = await fetch(url);
                 const data = await response.json();
                 story = data.instructors || [];
-                $("body").toggleClass("loaded");
             } catch (err) {
                 console.log("Search error:", err);
                 // Fallback to local filter if API fails
                 story = allRecords.filter(function (i) {
                     return (i.mobile_no !== undefined && i.mobile_no.toString().includes(instructorno)) || (i.name !== undefined && i.name.toString().includes(instructorno));
                 });
+            } finally {
+                $("body").addClass("loaded");
             }
         } else {
             // Local filter for name or partial mobile number from already loaded records

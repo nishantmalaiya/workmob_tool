@@ -65,3 +65,16 @@ hr {
     overflow-y: unset;
     max-height: unset;
 }
+
+/* Add Story: instructor Selectize — typed filter (digits) visible; options show full mobile */
+#divJson .selectize-control.single .selectize-input > input {
+    color: #333 !important;
+    opacity: 1 !important;
+}
+#divJson .selectize-dropdown.single {
+    min-width: 280px;
+}
+#divJson .selectize-dropdown .option {
+    white-space: normal;
+    word-break: break-word;
+}
