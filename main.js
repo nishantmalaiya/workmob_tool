@@ -117,7 +117,7 @@ app.on("ready", function () {
 
     remoteMain.enable(childLogin.webContents);
 
-    childLogin.openDevTools();
+    // childLogin.openDevTools();
     ipcMain.on("entry-accepted", (event, arg) => {
         if (arg == "ping") {
             win.maximize();

@@ -7,12 +7,14 @@ const path = require("path");
 //const { setInterval, clearInterval } = require("timers");
 const ipcRenderer = require("electron").ipcRenderer;
 var pathName = remote.getGlobal("sharedObj").pathName;
+console.log("pathName", pathName)
 const dialog = remote.dialog;
 let common = require("./js/config");
 let activePathS3 = common.getS3Path();
 
 /** Set to false before release — fills add-story popup with dummy data for local testing */
-const TEST_PREFILL_STORY = true;
+const TEST_PREFILL_STORY = false;
+let editSlug = "";
 
 function prefillStoryTestData() {
     console.log("Prefilling testing data for story...");
@@ -23,7 +25,7 @@ function prefillStoryTestData() {
         // Regular inputs in #divJson
         $("#divJson").find('[name="storyHeading"]').val("Test Story Heading " + uniqueId);
         $("#divJson").find('[name="name"]').val("nishant Malaiya ");
-        $("#divJson").find('[name="slug"]').val("nishant_test" + uniqueId);
+        $("#divJson").find('[name="slug"]').val("nishant-test" + uniqueId);
         $("#divJson").find('[name="metaTitle"]').val("Test Meta Title");
         $("#divJson").find('[name="metaDesc"]').val("Test Meta Description");
         $("#divJson").find('[name="industry"]').val("Testing");
@@ -69,7 +71,17 @@ function apiFetch(url, options = {}) {
     });
 }
 
-const LOCATIONS_API_BASE = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations";
+const API_BASE_URL = common.API_BASE_URL;
+
+const LOCATIONS_API_BASE = `${API_BASE_URL}/` + activePathS3["location"];
+const ORGANISATIONS_API_BASE = `${API_BASE_URL}/` + activePathS3["organisation"];
+const CATEGORIES_API_BASE = `${API_BASE_URL}/` + activePathS3["category"].replace("category.json", "categories");
+const INSTRUCTORS_API_BASE = `${API_BASE_URL}/` + activePathS3["instructor"].replace("instructor.js", "instructors");
+const ORGANISATION_MASTER_API_BASE = `${API_BASE_URL}/organisation_master`;
+const MASTER_TAG_API_BASE = `${API_BASE_URL}/` + activePathS3["TagsMaster"].replace("tags_master.json", "master_tag");
+const STORY_DETAIL_API_BASE = `${API_BASE_URL}/` + activePathS3["story-detail"].replace(/\/$/, "");
+const TAG_DETAIL_API_BASE = `${API_BASE_URL}/tag_detail`;
+const masterStoriesApiUrl = `${API_BASE_URL}/` + activePathS3["MasterIndex"].replace("MasterIndex.json", "stories");
 
 /** Normalize dropdown value to API path slug (matches saveOnTags_Location / delete helpers). */
 function normalizeLocationSlug(filename) {
@@ -98,6 +110,19 @@ function locationDetailPostUrl(locationSlug, detailSlug) {
     return base;
 }
 
+function tagDetailPostUrl(tagSlug, detailSlug) {
+    const id = slugify(tagSlug);
+    const base = `${TAG_DETAIL_API_BASE}/${encodeURIComponent(id)}`;
+    return base;
+}
+
+function buildTagStoryPostBody(templateTop, tagSlug) {
+    return {
+        ...templateTop,
+        tag: tagSlug
+    };
+}
+
 function buildLocationStoryPostBody(templateTop, locationSlug) {
     const cityText = (templateTop.location && String(templateTop.location).trim()) || "";
     return {
@@ -107,6 +132,14 @@ function buildLocationStoryPostBody(templateTop, locationSlug) {
         industry: templateTop.industry,
         ...(cityText ? { city: cityText } : {})
     };
+}
+
+function slugify(text) {
+    return String(text || "")
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '')  // Remove punctuation
+        .trim()
+        .replace(/\s+/g, '-');     // Replace spaces with hyphens
 }
 
 async function logApiError(response, label) {
@@ -125,17 +158,16 @@ async function logApiError(response, label) {
     console.error(label || "API error", response.status, parsed);
 }
 const storyFeedApiUrls = {
-    storiestop: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-top",
-    storiestending: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-trending",
-    storiesMobileHomeScreen: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-mobile-home",
-    bloghome: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-blog-home",
-    storieshope: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-hope",
-    storiesgyan: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-gyan",
-    storiesnamaste: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-namaste",
-    storiespromotion: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-promotion"
+    storiestop: `${API_BASE_URL}/` + activePathS3["stories-top"],
+    storiestending: `${API_BASE_URL}/` + activePathS3["trending"],
+    storiesMobileHomeScreen: `${API_BASE_URL}/` + activePathS3["mobile-home"],
+    bloghome: `${API_BASE_URL}/` + activePathS3["blog-home"],
+    storieshope: `${API_BASE_URL}/` + activePathS3["stories-hope"].replace(".json", ""),
+    storiesgyan: `${API_BASE_URL}/` + activePathS3["stories-gyan"].replace(".json", ""),
+    storiesnamaste: `${API_BASE_URL}/` + activePathS3["stories-namaste"].replace(".json", ""),
+    storiespromotion: `${API_BASE_URL}/` + activePathS3["stories-promotion"].replace(".json", "")
 };
 /** Master index list/detail (replaces S3 `activePathS3["MasterIndex"]` for load / visibility / delete). */
-const masterStoriesApiUrl = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories";
 var storyAlsoOn = [];
 var storyInAllJson = [];
 var Need_subCategory_in = ["namaste", "promotion"];
@@ -158,8 +190,8 @@ if (Need_trending_in.indexOf(type) != -1) {
 storyInAllJson.push({ file: storyFeedApiUrls.storiestending });
 storyInAllJson.push({ file: storyFeedApiUrls.storiesMobileHomeScreen });
 storyInAllJson.push({ file: storyFeedApiUrls.bloghome });
-storyInAllJson.push({ file: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations" });
-storyInAllJson.push({ file: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/organisations" });
+storyInAllJson.push({ file: LOCATIONS_API_BASE });
+storyInAllJson.push({ file: ORGANISATIONS_API_BASE });
 storyInAllJson.push({ file: storyFeedApiUrls.storieshope });
 storyInAllJson.push({ file: storyFeedApiUrls.storiesgyan });
 storyInAllJson.push({ file: storyFeedApiUrls.storiesnamaste });
@@ -178,6 +210,7 @@ var tmpOrganisation = "";
 var tmpTopStory = false;
 var previousOrganisation = "";
 var previousLocation = "";
+var previousTags = "";
 GetSubcategoryList();
 
 async function readStoryFeed(feed) {
@@ -212,7 +245,7 @@ async function writeStoryFeed(feed, templateTop) {
     try {
         const url = `${feed.file}/${templateTop.slug}`;
         const response = await apiFetch(url, {
-            method: "POST",
+            method: editSlug !== "" ? "PUT" : "POST",
             headers: {
                 "Content-Type": "application/json",
             },
@@ -268,7 +301,6 @@ $("body").on("change", "#ddl_ddlcategory", async function () {
 $("#divExtraFieldHindi").hide();
 var addStory = (async function () {
 
-    let editSlug = "";
     ipcRenderer.on("receiveSlug", async (event, arg) => {
 
         console.log(arg);
@@ -348,7 +380,7 @@ var addStory = (async function () {
     async function GetCategoryList() {
         // debugger;
         try {
-            const response = await apiFetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories?limit=100");
+            const response = await apiFetch(`${CATEGORIES_API_BASE}?limit=100`);
             const data = await response.json();
             const JSON_Obj = data.categories;
 
@@ -380,7 +412,7 @@ var addStory = (async function () {
             let hasMore = true;
             let loading = false;
 
-            const response = await apiFetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors?limit=100");
+            const response = await apiFetch(`${INSTRUCTORS_API_BASE}?limit=100`);
             const data = await response.json();
             const JSON_Obj = data.instructors || [];
             lastKey = data.lastKey;
@@ -415,12 +447,12 @@ var addStory = (async function () {
                 loadThrottle: 300,
                 load: async function (query, callback) {
                     var digits = String(query || "").replace(/\D/g, "");
-                    if (digits.length < 3) {
+                    if (digits.length < 8) {
                         return callback([]);
                     }
                     try {
                         const searchUrl =
-                            "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors/" +
+                            INSTRUCTORS_API_BASE + "/" +
                             encodeURIComponent(digits);
                         const searchResponse = await apiFetch(searchUrl);
                         const searchData = await searchResponse.json();
@@ -468,7 +500,7 @@ var addStory = (async function () {
                             loading = true;
                             try {
                                 console.log("Fetching next page of instructors with lastKey:", lastKey);
-                                const nextUrl = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors?limit=100&lastKey=${encodeURIComponent(lastKey)}`;
+                                const nextUrl = `${INSTRUCTORS_API_BASE}?limit=100&lastKey=${encodeURIComponent(lastKey)}`;
                                 const nextResponse = await apiFetch(nextUrl);
                                 const nextData = await nextResponse.json();
 
@@ -495,19 +527,34 @@ var addStory = (async function () {
                 }
             });
             var selectize = $select[0].selectize;
+            if (tmpinstructor && !selectize.options[tmpinstructor]) {
+                try {
+                    const searchUrl = `${INSTRUCTORS_API_BASE}/${encodeURIComponent(tmpinstructor)}`;
+                    const searchResponse = await apiFetch(searchUrl);
+                    const searchData = await searchResponse.json();
+                    let instr = searchData.instructor;
+                    if (!instr && Array.isArray(searchData.instructors)) instr = searchData.instructors[0];
+                    if (!instr && (searchData.user_id || searchData.mobile_no)) instr = searchData;
 
-            if (tmpinstructor == '') {
-                selectize.setValue('');
-            } else {
-                selectize.setValue(tmpinstructor);
+                    if (instr) {
+                        selectize.addOption({
+                            value: String(instr.user_id || instr.Id),
+                            text: instructorOptionText(instr),
+                        });
+                        if (typeof _instructorList !== "undefined") _instructorList.push(String(instr.user_id || instr.Id));
+                    }
+                } catch (e) {
+                    console.error("Error fetching specific instructor:", e);
+                }
             }
+            selectize.setValue(tmpinstructor || "");
         } catch (error) {
             console.log("Error fetching instructors:", error);
         }
     }
     async function GetLocationList() {
         try {
-            const response = await apiFetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations");
+            const response = await apiFetch(LOCATIONS_API_BASE);
             const data = await response.json();
             const JSON_Obj = data.locations;
 
@@ -524,20 +571,17 @@ var addStory = (async function () {
             });
             var selectize = $select[0].selectize;
 
-            if (tmplocation == "") {
-                selectize.setValue('NoLocation');
+            if (tmplocation && tmplocation !== "NoLocation" && !selectize.options[tmplocation]) {
+               selectize.addOption({ value: tmplocation.toLowerCase(), text: tmplocation });
             }
-            else {
-                selectize.setValue(tmplocation);
-
-            }
+            selectize.setValue(tmplocation || "NoLocation");
         } catch (error) {
             console.log("Error fetching locations:", error);
         }
     }
     async function GetOrganisationList() {
         try {
-            const response = await apiFetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/organisation_master");
+            const response = await apiFetch(ORGANISATION_MASTER_API_BASE);
             const responseData = await response.json();
             const JSON_Obj = responseData.data;
 
@@ -554,13 +598,10 @@ var addStory = (async function () {
             });
             var selectize = $select[0].selectize;
 
-            if (tmpOrganisation == "") {
-                selectize.setValue("NoOrganisation");
+            if (tmpOrganisation && tmpOrganisation !== "NoOrganisation" && !selectize.options[tmpOrganisation]) {
+                selectize.addOption({ value: tmpOrganisation.toLowerCase(), text: tmpOrganisation });
             }
-            else {
-                selectize.setValue(tmpOrganisation);
-
-            }
+            selectize.setValue(tmpOrganisation || "NoOrganisation");
         } catch (error) {
             console.log("Error fetching organisations:", error);
         }
@@ -776,16 +817,9 @@ var addStory = (async function () {
         tmpTopStory = true;
         validaton(GenerateStory, async function (result) {
             if (result.cansave) {
-                const checkResponse = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/${GenerateStory.slug}`);
-                let checkData = {};
-                try {
-                    checkData = await checkResponse.json();
-                } catch (e) {
-                    console.log("Error checking story:", e);
-                }
-
-                if (checkData.error === "Story not found" || editSlug !== "") {
-                    const response = await apiFetch(editSlug !== "" ? "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/" + editSlug : "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories", {
+                const checkResponse = await apiFetch(`${masterStoriesApiUrl}/${GenerateStory.slug}`);
+                if (editSlug !== "" || !checkResponse.ok) {
+                    const response = await apiFetch(editSlug !== "" ? masterStoriesApiUrl + "/" + editSlug : masterStoriesApiUrl, {
                         method: editSlug !== "" ? "PUT" : "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -795,25 +829,26 @@ var addStory = (async function () {
                     const meta = await response.json();
                     console.log("API Response:", meta);
 
-                    const url = editSlug !== ""
-                        ? `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/story-detail/${editSlug}`  // PUT
-                        : `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/story-detail`;             // POST
+                    const detailResponse = await apiFetch(
+                        editSlug !== ""
+                            ? `${STORY_DETAIL_API_BASE}/${editSlug}`
+                            : `${STORY_DETAIL_API_BASE}`,
+                        {
+                            method: editSlug !== "" ? "PUT" : "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(GenerateStory),
+                        }
+                    );
 
-                    const storyDetailResponse = await apiFetch(url, {
-                        method: editSlug !== "" ? "PUT" : "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(GenerateStory),
-                    });
-
-                    const metaStoryDetail = await storyDetailResponse.json();
+                    const metaStoryDetail = await detailResponse.json();
                     console.log("API Response:", metaStoryDetail);
                     const locationVal = $("#divJson #ddl_location").val();
 
                     /*
                     if (locationVal && locationVal !== "NoLocation") {
-                        const addLocationResponse = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations/${locationVal}`, {
+                        const addLocationResponse = await apiFetch(`${LOCATIONS_API_BASE}/${locationVal}`, {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",
@@ -834,14 +869,14 @@ var addStory = (async function () {
                         for (const cat of categoriesArr) {
                             if (!cat) continue;
 
-                            const url = isUpdate
-                                ? `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories/${cat}/${slug}`
-                                : `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories/${cat}`;
+                            const catUrl = isUpdate
+                                ? `${CATEGORIES_API_BASE}/${cat}/${slug}`
+                                : `${CATEGORIES_API_BASE}/${cat}`;
 
                             const method = isUpdate ? "PUT" : "POST";
 
                             try {
-                                const addCategoryResponse = await apiFetch(url, {
+                                const addCategoryResponse = await apiFetch(catUrl, {
                                     method: method,
                                     headers: {
                                         "Content-Type": "application/json",
@@ -866,16 +901,15 @@ var addStory = (async function () {
 
 
                 } else {
-                    console.log("Story already exists. Skipping creation.", checkData);
+                    console.log("Story slug already exists. Cannot create a duplicate.");
 
-                    const options = { title: "", message: "Story already exists. Skipping creation.", detail: "", };
+                    const options = { title: "Slug Taken", message: "A story with this slug already exists. Please use a unique slug or edit the existing story.", detail: "", };
                     try {
                         dialog.showMessageBox(null, options);
                     } catch (e) {
                         console.log(e);
                         dialog.showMessageBox(null, options);
                     }
-                    // Potential TODO: Handle Update (PUT) here if intended.
                 }
                 for (var key in templateTop) {
                     templateTop[key] = GenerateStory[key];
@@ -894,12 +928,25 @@ var addStory = (async function () {
                     await saveOnTags_Location(templateTop, $("#divJson #ddl_location").val(), "location");
                 }
                 var _tags = $("#divJson").find('[name="tags"]').val();
-                if (_tags != "") {
-                    $(_tags.split(",")).each(async function () {
-                        await saveOnTags_Location(templateTop, this.toString(), "tags");
-                    });
+                if (previousTags && previousTags !== _tags) {
+                    const oldTags = previousTags.split(',').map(t => t.trim());
+                    const newTags = _tags.split(',').map(t => t.trim());
+                    const removedTags = oldTags.filter(t => !newTags.includes(t));
+                    if (removedTags.length > 0) {
+                        await deleteFromTags(templateTop.slug, removedTags.join(','));
+                    }
                 }
+
                 await saveTags_Master(templateTop);
+
+                if (_tags != "") {
+                    const tagList = _tags.split(",");
+                    for (const tag of tagList) {
+                        if (tag.trim() !== "") {
+                            await saveOnTags_Location(templateTop, tag.trim(), "tags");
+                        }
+                    }
+                }
                 // if ($('#chk_storiesvisiblity').is(":checked")) {
                 //     await HideFromAllJSON(templateTop);
                 // }
@@ -936,7 +983,7 @@ var addStory = (async function () {
     async function saveTags_Master(templateTop) {
         var tagDataMaster = [];
         try {
-            const response = await apiFetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/master_tag");
+            const response = await apiFetch(MASTER_TAG_API_BASE);
             const result = await response.json();
             tagDataMaster = result.data || result.master_tags || result || [];
         } catch (error) {
@@ -948,10 +995,11 @@ var addStory = (async function () {
             const tagsEn = templateTop.tags.split(',').map(t => t.trim());
             const tagsHi = (templateTop.tags_hindi || "").split(',').map(t => t.trim());
 
+            const newTags = [];
             tagsEn.forEach((tagEn, index) => {
                 const tagSlug = slugify(tagEn);
                 if (tagSlug && !existingTags.has(tagSlug)) {
-                    tagDataMaster.push({
+                    newTags.push({
                         tag: tagSlug,
                         title: tagEn,
                         tag_hindi: tagsHi[index] || ""
@@ -959,20 +1007,26 @@ var addStory = (async function () {
                 }
             });
 
-            try {
-                const response = await apiFetch("https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/master_tag", {
-                    method: "PUT",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(tagDataMaster),
-                });
-                const meta = await response.json();
-                console.log("Master Tag API Response:", meta);
-            } catch (error) {
-                console.error("Error writing master tags via API:", error);
+            if (newTags.length > 0) {
+                try {
+                    const method = editSlug !== "" ? "PUT" : "POST";
+                    const response = await apiFetch(MASTER_TAG_API_BASE, {
+                        method: method,
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify(newTags),
+                    });
+                    const meta = await response.json();
+                    console.log(`Master Tag API Response (${method}):`, meta);
+                } catch (error) {
+                    console.error("Error writing master tags via API:", error);
+                }
+            } else {
+                console.log("No new tags to add.");
             }
         }
+    }
 
         /*
         const IsExistsTagMaster = await existsS3Bucket(`${activePathS3["TagsMaster"]}`);
@@ -1014,7 +1068,7 @@ var addStory = (async function () {
         await WriteS3Bucket(arrayContent, `${activePathS3["TagsMaster"]}`, function (tt) { });
         // }
         */
-    }
+
 
     async function validaton(json, callback) {
         var list = ["storyHeading", "name", "slug", "category"];
@@ -1055,7 +1109,7 @@ var addStory = (async function () {
             if ($(txtboxSlug).attr("disabled") == undefined) {
                 try {
                     console.log("Checking slug availability via API...");
-                    const checkResponse = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/${encodeURIComponent(slug)}`);
+                    const checkResponse = await apiFetch(`${masterStoriesApiUrl}/${encodeURIComponent(slug)}`);
                     const checkData = await checkResponse.json();
 
                     if (checkData && checkData.slug && $.trim(checkData.slug.toLowerCase()) == $.trim(slug.toLowerCase())) {
@@ -1459,7 +1513,7 @@ var addStory = (async function () {
 
     function ReadSlug(slug) {
         $.ajax({
-            url: "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/" + slug,
+            url: masterStoriesApiUrl + "/" + slug,
             method: "GET",
             success: function (data) {
                 try {
@@ -1477,9 +1531,15 @@ var addStory = (async function () {
                             if (key === "instructor") {
                                 tmpinstructor = JSON_Obj[key];
                                 GetInstructorList();
+                            } else if (key === "tags") {
+                                previousTags = JSON_Obj[key];
                             } else if (key === "location") {
-                                GetLocationList();  // Fixed typo
+                                tmplocation = JSON_Obj[key];
+                                previousLocation = JSON_Obj[key];
+                                GetLocationList();
                             } else if (key === "organisation") {
+                                tmpOrganisation = JSON_Obj[key];
+                                previousOrganisation = JSON_Obj[key];
                                 GetOrganisationList();
                             }
                         }
@@ -1497,23 +1557,7 @@ var addStory = (async function () {
                     $("#divJson #ddl_ddlcategory").val(master_categories);
                     $("#divJson #ddl_ddlcategory").multipleSelect("refresh");
 
-                    // Handle organisation
-                    if (JSON_Obj["organisation"] != null && JSON_Obj["organisation"] !== "") {
-                        previousOrganisation = JSON_Obj["organisation"];  // Fixed typo
-                        tmpOrganisation = JSON_Obj["organisation"];
-                    } else {
-                        previousOrganisation = "";
-                        tmpOrganisation = "";
-                    }
 
-                    // Handle location
-                    if (JSON_Obj["location"] != null && JSON_Obj["location"] !== "") {
-                        previousLocation = JSON_Obj["location"];  // Fixed typo
-                        tmplocation = JSON_Obj["location"];
-                    } else {
-                        previousLocation = "";
-                        tmplocation = "";
-                    }
 
                     // Render stories
                     $("#ddlLanguage").val("English");
@@ -1870,7 +1914,7 @@ var addStory = (async function () {
                     if (fileJson.length !== originalLength) {
                         const isDetailApi = url.includes("/locations") || url.includes("/organisations");
                         await apiFetch(url, {
-                            method: isDetailApi ? "POST" : "PUT",
+                            method: editSlug !== "" ? "PUT" : "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify(isDetailApi ? fileJson : { story: fileJson })
                         });
@@ -1886,7 +1930,7 @@ var addStory = (async function () {
         if (Array.isArray(previousCategory)) {
             for (const category of previousCategory) {
                 try {
-                    const catUrl = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories/${category}`;
+                    const catUrl = `${CATEGORIES_API_BASE}/${category}`;
                     const response = await apiFetch(catUrl);
                     const result = await response.json();
                     let allStory = result.stories || result.data || result || [];
@@ -1897,7 +1941,7 @@ var addStory = (async function () {
 
                         if (allStory.length !== originalLength) {
                             await apiFetch(catUrl, {
-                                method: "PUT",
+                                method: editSlug !== "" ? "PUT" : "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify(allStory)
                             });
@@ -1906,6 +1950,21 @@ var addStory = (async function () {
                     }
                 } catch (e) {
                     console.error(`Error removing from category ${category}:`, e);
+                }
+            }
+        }
+
+        // Remove from Tags
+        if (templateTop.tags) {
+            const tagsArr = templateTop.tags.split(',').map(t => slugify(t.trim()));
+            for (const tag of tagsArr) {
+                if (!tag) continue;
+                try {
+                    const tagUrl = tagDetailPostUrl(tag, templateTop.slug);
+                    await apiFetch(tagUrl, { method: "DELETE" });
+                    console.log(`Removed from tag: ${tag}`);
+                } catch (e) {
+                    console.error(`Error removing from tag ${tag}:`, e);
                 }
             }
         }
@@ -2126,53 +2185,65 @@ var addStory = (async function () {
     $("#btndelete").on("click", async function () {
         if (confirm("Are you sure want to delete this story!")) {
             $("body").toggleClass("loaded");
-            const slug = $("#txt_slug").val();
+            const slug = editSlug; 
 
             try {
-                // Fetch the current story details first to know its references
-                const getResponse = await apiFetch(`${masterStoriesApiUrl}/${slug}`);
-                const slugJson = await getResponse.json();
+                // 1. Delete from Master Stories API
+                const deleteResponse = await apiFetch(`${masterStoriesApiUrl}/${slug}`, {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" }
+                });
+                console.log("Main story delete API response:", await deleteResponse.json());
 
-                if (slugJson && !slugJson.error) {
-                    // 1. Delete from Location
-                    if (slugJson.location && slugJson.location !== "NoLocation") {
-                        await deleteFromLocation(slug, slugJson.location);
+                // 2. Delete from Story Detail API
+                const deleteDetailResponse = await apiFetch(`${STORY_DETAIL_API_BASE}/${slug}`, {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" }
+                });
+                console.log("Story detail delete API response:", await deleteDetailResponse.json());
+
+                // 3. Delete from Location
+                const locationVal = $("#divJson #ddl_location").val();
+                if (locationVal && locationVal !== "NoLocation") {
+                    await deleteFromLocation(slug, locationVal);
+                }
+
+                // 4. Delete from Instructor
+                const instructorVal = $("#divJson #ddl_instructor").val();
+                if (instructorVal && instructorVal !== "noinstructor") {
+                    await deleteFromInstructor(slug, instructorVal);
+                }
+
+                // 5. Delete from Organisation
+                const organisationVal = $("#divJson #ddl_organisation").val();
+                if (organisationVal && organisationVal !== "NoOrganisation") {
+                    await deleteFromOrganisation(slug, organisationVal);
+                }
+
+                // 6. Delete from Categories
+                const categoryVal = $("#divJson #ddl_ddlcategory").val();
+                if (categoryVal) {
+                    const categoriesArr = Array.isArray(categoryVal) ? categoryVal : [categoryVal];
+                    for (const cat of categoriesArr) {
+                        if (!cat) continue;
+                        await deleteFromCategory(slug, cat);
                     }
+                }
 
-                    // 2. Delete from Instructor
-                    if (slugJson.instructor) {
-                        await deleteFromInstructor(slug, slugJson.instructor);
-                    }
+                // 7. Delete from Feeds
+                for (const feed of storyAlsoOn) {
+                    await deleteFromFeed(feed.file, slug);
+                }
 
-                    // 3. Delete from Organisation
-                    if (slugJson.organisation) {
-                        await deleteFromOrganisation(slug, slugJson.organisation);
-                    }
-
-                    // 4. Delete from Categories
-                    if (slugJson.master_categories) {
-                        const categories = slugJson.master_categories.split(",");
-                        for (const cat of categories) {
-                            await deleteFromCategory(slug, cat);
-                        }
-                    }
-
-                    // 5. Delete from all feeds (Trending, Top, etc.)
-                    for (const feed of storyAlsoOn) {
-                        await deleteFromFeed(feed.file, slug);
-                    }
-
-                    // 6. Delete the main story record via API
-                    const deleteResponse = await apiFetch(`${masterStoriesApiUrl}/${slug}`, {
-                        method: "DELETE"
-                    });
-                    const deleteMeta = await deleteResponse.json();
-                    console.log("Main story delete API response:", deleteMeta);
+                // 8. Delete from Tags
+                const tagsVal = $("#divJson").find('[name="tags"]').val();
+                if (tagsVal) {
+                    await deleteFromTags(slug, tagsVal);
                 }
 
                 $("body").toggleClass("loaded");
                 alert("Story deleted successfully!");
-                ipcRenderer.send("reload-parent"); // Assumed event to refresh main page
+                ipcRenderer.send("reload-parent"); 
                 remote.getCurrentWindow().close();
 
             } catch (error) {
@@ -2184,22 +2255,36 @@ var addStory = (async function () {
     });
 
 
+    async function deleteFromTags(slug, tagsString) {
+        if (!tagsString) return;
+        const tagsArr = tagsString.split(',').map(t => slugify(t.trim()));
+        for (const tag of tagsArr) {
+            if (!tag) continue;
+            try {
+                // 1. Delete from tag_detail
+                const tagUrl = `${tagDetailPostUrl(tag)}/${encodeURIComponent(normalizeDetailPathSegment(slug))}`;
+                await apiFetch(tagUrl, { method: "DELETE" });
+
+                // 2. Delete from master_tag
+                const masterUrl = `${MASTER_TAG_API_BASE}/${tag}`;
+                await apiFetch(masterUrl, { method: "DELETE" });
+
+                console.log(`Deleted story ${slug} from tag: ${tag} and master list`);
+            } catch (e) {
+                console.error(`Error deleting from tag ${tag}:`, e);
+            }
+        }
+    }
+
     async function deleteFromFeed(feedUrl, slug) {
         if (!feedUrl || !/^https?:\/\//i.test(feedUrl)) return;
         try {
-            const response = await apiFetch(feedUrl);
-            const data = await response.json();
-            let stories = data.story || data.stories || data.data || data || [];
-            if (Array.isArray(stories)) {
-                const filtered = stories.filter(item => item.slug != slug);
-                if (filtered.length !== stories.length) {
-                    await apiFetch(feedUrl, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ story: filtered })
-                    });
-                }
-            }
+            const url = `${feedUrl}/${slug}`;
+            const response = await apiFetch(url, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" }
+            });
+            console.log(`Delete from feed response for ${feedUrl}:`, await response.json());
         } catch (e) {
             console.error(`Error deleting from feed ${feedUrl}:`, e);
         }
@@ -2224,20 +2309,13 @@ var addStory = (async function () {
     };
 
     let deleteFromInstructor = async (slug, instructor) => {
-        const url = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors/${instructor}`;
+        const url = `${INSTRUCTORS_API_BASE}/${instructor}/${slug}`;
         try {
-            const response = await apiFetch(url);
-            const data = await response.json();
-            if (data && data.story) {
-                const filtered = data.story.filter(itm => itm.slug != slug);
-                if (filtered.length !== data.story.length) {
-                    await apiFetch(url, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ story: filtered })
-                    });
-                }
-            }
+            const response = await apiFetch(url, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" }
+            });
+            console.log("Delete from instructor response:", await response.json());
         } catch (e) {
             console.error("Error deleting from instructor via API:", e);
         }
@@ -2245,42 +2323,26 @@ var addStory = (async function () {
 
     let deleteFromOrganisation = async (slug, organisation) => {
         organisation = $.trim(organisation.toLowerCase()).replace(/ /g, "_");
-        const url = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/organisations/${organisation}`;
+        const url = `${ORGANISATIONS_API_BASE}/${organisation}/${slug}`;
         try {
-            const response = await apiFetch(url);
-            const data = await response.json();
-            let orgData = data.organisations || data.data || data || [];
-            if (Array.isArray(orgData)) {
-                const filtered = orgData.filter(itm => itm.slug != slug);
-                if (filtered.length !== orgData.length) {
-                    await apiFetch(url, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(filtered)
-                    });
-                }
-            }
+            const response = await apiFetch(url, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" }
+            });
+            console.log("Delete from organisation response:", await response.json());
         } catch (e) {
             console.error("Error deleting from organisation via API:", e);
         }
     };
 
     let deleteFromCategory = async (slug, category) => {
-        const url = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories/${category}`;
+        const url = `${CATEGORIES_API_BASE}/${category}/${slug}`;
         try {
-            const response = await apiFetch(url);
-            const data = await response.json();
-            let catStories = data.stories || data.data || data || [];
-            if (Array.isArray(catStories)) {
-                const filtered = catStories.filter(itm => itm.slug != slug);
-                if (filtered.length !== catStories.length) {
-                    await apiFetch(url, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(catStories)
-                    });
-                }
-            }
+            const response = await apiFetch(url, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" }
+            });
+            console.log(`Delete from category ${category} response:`, await response.json());
         } catch (e) {
             console.error("Error deleting from category via API:", e);
         }
@@ -2412,7 +2474,7 @@ var addStory = (async function () {
             let category = this.toString();
             // Only remove from categories that were previously checked but are now unchecked
             if (vddlCategory.indexOf(category) == -1) {
-                const url = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories/${category}`;
+                const url = `${CATEGORIES_API_BASE}/${category}`;
                 try {
                     const response = await apiFetch(url);
                     const data = await response.json();
@@ -2422,7 +2484,7 @@ var addStory = (async function () {
                         AllStory = AllStory.filter(itm => itm.slug != slug);
                         if (AllStory.length !== originalLength) {
                             await apiFetch(url, {
-                                method: "PUT",
+                                method: editSlug !== "" ? "PUT" : "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify(AllStory)
                             });
@@ -2441,8 +2503,8 @@ var addStory = (async function () {
         let _instructor = $('#ddl_instructor').val();
         if (_instructor != "noinstructor" && _instructor != null && _instructor != "") {
             try {
-                const response = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors/${_instructor}`, {
-                    method: "PUT",
+                const response = await apiFetch(`${INSTRUCTORS_API_BASE}/${_instructor}`, {
+                    method: "PUT" ,
                     headers: {
                         "Content-Type": "application/json",
                     },
@@ -2540,39 +2602,23 @@ var addStory = (async function () {
 
     let saveOnOrganisation = async (templateTop, filename, path) => {
         if (filename != "NoOrganisation" && filename != null && filename != "") {
-            const organisationUrl = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/organisations/${filename}?organisation=${filename}`;
+            const organisationUrl = `${ORGANISATIONS_API_BASE}/${filename}?organisation=${filename}`;
+            const organisationBody = { ...templateTop, Organisation: filename };
 
             try {
-                const getResponse = await apiFetch(organisationUrl);
-                const result = await getResponse.json();
-                organisationData = result.organisations || result.data || result || [];
-            } catch (e) {
-                console.error("Error reading organisation detail via API:", e);
-            }
-
-            if (!Array.isArray(organisationData)) organisationData = [];
-
-            const index = organisationData.findIndex(item => item.slug === templateTop.slug);
-            if (index !== -1) {
-                organisationData[index] = templateTop;
-            } else {
-                organisationData.push(templateTop);
-            }
-
-            try {
-                await apiFetch(organisationUrl, {
-                    method: "POST",
+                const organisationResponse = await apiFetch(organisationUrl, {
+                    method: editSlug !== "" ? "PUT" : "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ ...templateTop, Organisation: filename })
+                    body: JSON.stringify(organisationBody)
                 });
-                console.log("Organisation saved via API");
+                console.log("Save on organisation response:", organisationResponse.status);
             } catch (e) {
                 console.error("Error writing organisation detail via API:", e);
             }
         }
 
         if (previousOrganisation != "" && previousOrganisation != undefined && previousOrganisation.toLowerCase() != (filename || "").toLowerCase()) {
-            const oldOrganisationUrl = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/organisations/${$.trim(previousOrganisation).toLowerCase().replace(/ /g, "_")}`;
+            const oldOrganisationUrl = `${ORGANISATIONS_API_BASE}/${$.trim(previousOrganisation).toLowerCase().replace(/ /g, "_")}`;
             try {
                 const preResponse = await apiFetch(oldOrganisationUrl);
                 const preResult = await preResponse.json();
@@ -2582,7 +2628,7 @@ var addStory = (async function () {
                     const filteredData = oldOrganisationData.filter(itm => itm.slug != templateTop.slug);
                     if (filteredData.length != oldOrganisationData.length) {
                         await apiFetch(oldOrganisationUrl, {
-                            method: "POST",
+                            method: editSlug !== "" ? "PUT" : "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify(filteredData)
                         });
@@ -2594,41 +2640,20 @@ var addStory = (async function () {
             }
         }
     }
-    function slugify(text) {
-        return text
-            .toLowerCase()
-            .replace(/[^\w\s-]/g, '')  // Remove punctuation
-            .trim()
-            .replace(/\s+/g, '-');     // Replace spaces with hyphens
-    }
+
 
     let saveOnTags_Location = async (templateTop, filename, path) => {
 
         if (path == "tags") {
-            filename = $.trim(filename.toLowerCase()).replace(/ /g, "_");
-            let tagData = [];
             try {
-                const getResponse = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/tag_detail/${filename}`);
-                const result = await getResponse.json();
-                tagData = result.data || result.stories || result || [];
-            } catch (e) {
-                console.error("Error reading tag detail via API:", e);
-            }
+                const pathSlug = normalizeDetailPathSegment(templateTop.slug);
+                const detailUrl = tagDetailPostUrl(filename, pathSlug);
+                const postBody = buildTagStoryPostBody(templateTop, filename);
 
-            if (!Array.isArray(tagData)) tagData = [];
-
-            const index = tagData.findIndex(item => item.slug === templateTop.slug);
-            if (index !== -1) {
-                tagData[index] = templateTop;
-            } else {
-                tagData.push(templateTop);
-            }
-
-            try {
-                const response = await apiFetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/tag_detail/${filename}`, {
-                    method: "POST",
+                const response = await apiFetch(detailUrl, {
+                    method: editSlug !== "" ? "PUT" : "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(templateTop)
+                    body: JSON.stringify(postBody)
                 });
                 const meta = await response.json();
                 console.log("Tag Detail API Response:", meta);
@@ -2670,7 +2695,7 @@ var addStory = (async function () {
                     slug: pathSlug
                 };
                 const writeResponse = await apiFetch(detailUrl, {
-                    method: "POST",
+                    method: editSlug !== "" ? "PUT" : "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(postBody)
                 });

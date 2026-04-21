@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Add User</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.amazonaws.com; style-src 'self' 'unsafe-inline' https://maxcdn.bootstrapcdn.com; connect-src *; img-src 'self' data: *; https://www.gstatic.com">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline' https://sdk.amazonaws.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://maxcdn.bootstrapcdn.com; connect-src *; img-src 'self' data: *;">
     <link rel="stylesheet" href="../css/bootstrap.min.css">
     <link rel="stylesheet" href="../css/Loader.css">
     <link rel="stylesheet" href="../css/custome.css">
@@ -16,9 +17,9 @@
             cursor: move;
         }
 
-            .column.over {
-                border-top: 2px solid #333;
-            }
+        .column.over {
+            border-top: 2px solid #333;
+        }
 
         hr {
             margin-top: 30px;
@@ -40,6 +41,7 @@
     </style>
 </head>
 <!-- class="loaded" -->
+
 <body style="background-color: rgb(224, 252, 243);" class="loaded">
     <div class="container">
         <div class="row">
@@ -47,20 +49,23 @@
                 <div id="loader"></div>
             </div>
             <div class="col-md-12 row">
-                    <div class="col-md-6">
-                        <button type="button"  class="btn btn-primary" id="btnAddInstructor" data-toggle="modal">Add New User</button>
-                    </div>
+                <div class="col-md-6">
+                    <button type="button" class="btn btn-primary" id="btnAddInstructor" data-toggle="modal">Add New
+                        User</button>
+                </div>
 
+                <div class="col-md-6">
                     <div class="col-md-6">
-                        <div class="col-md-6">
-                        <input type="text" class="col-md-9 form-control" id="txtInstructorNo" style="float:left;" name="txtInstructorNo" />
-                        </div>
-                        <div class="col-md-2">
-                        <button type="button" class="btn btn-primary"  id="btnSearch">Search</button>
-                        </div>
-                        <div class="col-md-2">
-                        <button type="button" class="btn btn-primary"  id="btnClearSearch">Clear</button></div>
+                        <input type="text" class="col-md-9 form-control" id="txtInstructorNo" style="float:left;"
+                            name="txtInstructorNo" />
                     </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-primary" id="btnSearch">Search</button>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-primary" id="btnClearSearch">Clear</button>
+                    </div>
+                </div>
             </div>
             <hr>
             <div class="col-12 row" id="divInstructor">
@@ -72,7 +77,8 @@
         </div>
     </div>
 
-    <div class="modal fade" id="divModel" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div class="modal fade" id="divModel" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle"
+        aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -105,11 +111,13 @@
                         </div>
                         <div class="col-md-2 form-group">
                             <label>Mobile No.</label>
-                            <input type="tel" maxlength="13" pattern="\d{13}" class="form-control" id="txtMobileNo" onkeypress="return isNumberKey(event)" name="txtMobileNo"  onblur="phonenumber()" />
-                       </div>
+                            <input type="tel" maxlength="13" pattern="\d{13}" class="form-control" id="txtMobileNo"
+                                onkeypress="return isNumberKey(event)" name="txtMobileNo" onblur="phonenumber()" />
+                        </div>
                         <div class="col-md-2 form-group">
                             <label>User Guid</label>
-                            <input type="text" class="form-control" id="txtUserGuid" name="txtUserGuid" minlength="16" required />
+                            <input type="text" class="form-control" id="txtUserGuid" name="txtUserGuid" minlength="16"
+                                required />
                         </div>
 
 
@@ -124,7 +132,8 @@
                         </div>
                         <div class="col-md-3 form-group">
                             <label>Company Name (Hindi)</label>
-                            <input type="text" class="form-control" id="txtCompanyName_hindi" name="txtCompanyName_hindi" />
+                            <input type="text" class="form-control" id="txtCompanyName_hindi"
+                                name="txtCompanyName_hindi" />
                         </div>
                         <div class="col-md-3 form-group">
                             <label>Location (Hindi)</label>
@@ -134,10 +143,11 @@
                             <label>Allow go live</label>
                             <input type="checkbox" id="txtAllow_go_live" name="txtAllow_go_live" />
                         </div>
-                      
+
                         <div class="col-md-3 form-group">
                             <label>Live Profile Pic Card</label>
-                            <input type="text" class="form-control" id="txtlive_profile_pic_card" name="txtlive_profile_pic_card" />
+                            <input type="text" class="form-control" id="txtlive_profile_pic_card"
+                                name="txtlive_profile_pic_card" />
                         </div>
                         <!-- <div class="col-md-2 form-group">
                             <label>Show Contact</label>
@@ -168,20 +178,18 @@
     <script type="text/javascript" src="../js/firebaseconfing.js"></script>
     <script type="text/javascript" src="../js/Instructor.js"></script>
     <script>
-       function phonenumber()
-            {
-                var tel= document.getElementById("txtMobileNo").value;
-                //var pattern = /^[0-9]{3}[0-9]{3}[0-9]{4}$/;
-                var pattern = /^(\d{10}|\d{12})$/;
-                if (!pattern.test(tel)) {
-                   alert("Please enter valid mobile number : " + tel);
-                   return false;
-                }
+        function phonenumber() {
+            var tel = document.getElementById("txtMobileNo").value;
+            //var pattern = /^[0-9]{3}[0-9]{3}[0-9]{4}$/;
+            var pattern = /^(\d{10}|\d{12})$/;
+            if (!pattern.test(tel)) {
+                alert("Please enter valid mobile number : " + tel);
+                return false;
             }
-         function isNumberKey(evt) 
-        {
+        }
+        function isNumberKey(evt) {
             var charCode = (evt.which) ? evt.which : event.keyCode;
-                if ((charCode < 48 || charCode > 57))
+            if ((charCode < 48 || charCode > 57))
                 return false;
 
             return true;
@@ -189,4 +197,5 @@
 
     </script>
 </body>
+
 </html>

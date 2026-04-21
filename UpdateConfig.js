@@ -10,17 +10,24 @@ let common = require('./js/config');
 let activePathS3 = common.getS3Path();
 
 //if (fs.existsSync(path.join(__dirname, 'Files/config.json'))) {
-readS3Bucket(activePathS3["config"], function (json) {
-    configJson = JSON.parse(json.data);
-    $('#txtstoriestop').val(configJson["storiestop"]);
-    $('#txtbloghome').val(configJson["bloghome"]);
-    $('#txtstoriestending').val(configJson["storiestending"]);
-    $('#txtstoriesMobileHomeScreen').val(configJson["storiesMobileHomeScreen"]);
-    $('#txtstoriesHope').val(configJson["storieshope"]);
-    $('#txtstoriesGyan').val(configJson["storiesgyan"]);
-    $('#txtstoriesNamaste').val(configJson["storiesnamaste"]);
-    $('#txtstoriesPromotion').val(configJson["storiespromotion"]);
-});
+fetch(common.API_BASE_URL + "/add-config")
+    .then(response => response.json())
+    .then(data => {
+        // API returns { data: [ { ... } ], count: 1, ... }
+        configJson = (data.data && Array.isArray(data.data)) ? data.data[0] : (data.data || data);
+        
+        if (configJson) {
+            $('#txtstoriestop').val(configJson["storiestop"] || "");
+            $('#txtbloghome').val(configJson["bloghome"] || "");
+            $('#txtstoriestending').val(configJson["storiestending"] || "");
+            $('#txtstoriesMobileHomeScreen').val(configJson["storiesMobileHomeScreen"] || "");
+            $('#txtstoriesHope').val(configJson["storieshope"] || "");
+            $('#txtstoriesGyan').val(configJson["storiesgyan"] || "");
+            $('#txtstoriesNamaste').val(configJson["storiesnamaste"] || configJson["storiesNamaste"] || "");
+            $('#txtstoriesPromotion').val(configJson["storiespromotion"] || "");
+        }
+    })
+    .catch(err => console.error("Error loading config via API:", err));
 
 
 $('#btnUpdateJson').on('click', async function () {
@@ -45,7 +52,12 @@ $('#btnUpdateJson').on('click', async function () {
     config_json["storiesnamaste"] = $('#txtstoriesNamaste').val();
     config_json["storiespromotion"] = $('#txtstoriesPromotion').val();
     $('body').toggleClass('loaded');
-    var meta = await WriteS3Bucket(config_json, activePathS3["config"]);
+    const response = await fetch(common.API_BASE_URL + "/add-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config_json)
+    });
+    const meta = await response.json();
     $('body').toggleClass('loaded');
     const options = { title: '', message: 'config updated succssfully', detail: '' };
     try {

@@ -9,12 +9,9 @@ var ipcRenderer = require("electron").ipcRenderer;
 const dialog = remote.dialog;
 let common = require("../js/config");
 let activePathS3 = common.getS3Path();
-const limit = 100;
 let instructorList = [];
-let currentOffset = 0; // Tracks the current offset
-let allRecords = []; // To store fetched records
+let allRecords = [];
 let isFetching = false; 
-let hasMore = false;
 let lastKey = '';
 let globalCount = 0;
 
@@ -59,25 +56,12 @@ locationMasterList();
 
 async function locationMasterList() {
     // Reset initial state
-    currentOffset = 0;
     allRecords = [];
     globalCount = 0;
+    lastKey = '';
     $('#divStory').html('');
 
-    GetinstructorList(currentOffset, limit);
-
-    // Attach scroll event listener for lazy loading
-    let scrollTimeout;
-    $(window).on('scroll', function () {
-        if (scrollTimeout) clearTimeout(scrollTimeout);
-        scrollTimeout = setTimeout(() => {
-            if ($(window).scrollTop() + $(window).height() >= $(document).height() - 10) {
-                if (!isFetching) {
-                    GetinstructorList(currentOffset, limit);
-                }
-            }
-        }, 200); // Debounce scroll event by 200ms
-    });
+    GetinstructorList();
 }
 
 
@@ -96,47 +80,37 @@ async function locationMasterList() {
 //     await RenderInstructor(JSON.parse(meta.data));
 // }
 
-async function GetinstructorList(offset, limit) {
-    if (isFetching) return; // Prevent overlapping requests
+async function GetinstructorList() {
+    if (isFetching) return;
     isFetching = true;
     $("body").removeClass("loaded");
     
-    // Replace S3 read with API call
-    // let response;
     try {
-       const response = await fetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/instructors?limit=${limit}&lastKey=${encodeURIComponent(lastKey)}`);  // Adjust the URL to your actual API endpoint
-        if (!response.ok) {
-            throw new Error(`API request failed with status ${response.status}`);
+        let hasMore = true;
+        while (hasMore) {
+            const url = `${INSTRUCTORS_API_BASE}?lastKey=${encodeURIComponent(lastKey)}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
+            
+            const data = await response.json();
+            const batch = data.data || data.instructors || [];
+            
+            if (batch.length > 0) {
+                allRecords = [...allRecords, ...batch];
+                RenderInstructor(batch);
+            }
+            
+            hasMore = data.hasMore;
+            lastKey = data.lastKey || '';
+            if (!hasMore) break;
         }
-        const data = await response.json();
-        // Proceed with rendering (similar to original logic)
-        // $("#divInstructor").html(renderHeader());
-        hasMore = data.hasMore;
-        lastKey = data.lastKey;
-        instructorList = data.instructors; 
-        console.log('instructorList',instructorList); // Assuming the API returns the data directly (no need for JSON.parse if it's already parsed)
-        if (instructorList.length > 0) {
-            allRecords = [...allRecords, ...instructorList]; // Update all records
-            RenderInstructor(instructorList); // Render the new records
-            currentOffset += limit; // Increment offset for the next batch
-        } else {
-            console.log("No more records to load.");
-        }
-        // await RenderInstructor(data.instructors);
     } catch (error) {
-        // Handle errors similarly to the original (clear div and log)
         $("#divInstructor").html("");
-        console.log(error.message);
+        console.error("Fetch error:", error);
     } finally {
         $("body").addClass("loaded");
-        if (hasMore) {
-            isFetching = false; // Reset fetching status
-        } else {
-            isFetching = true; // Reset fetching status
-        }
+        isFetching = false;
     }
-    
-    // $("body").toggleClass("loaded");
 }
 
 function renderHeader() {
@@ -159,7 +133,6 @@ function renderHeader() {
 }
 async function RenderInstructor(instructor) {
     // debugger;
-    $("body").toggleClass("loaded");
     // $(".instructorList").remove();
     let Savedinstructor = [];
     let count = 0;
@@ -195,7 +168,6 @@ async function RenderInstructor(instructor) {
         }
     });
     $("#divInstructor").append(Savedinstructor.join(" "));
-    $("body").toggleClass("loaded");
 }
 
 
@@ -377,7 +349,7 @@ $("#btnSave").click(function () {
             console.log(meta);
             */
             if (instructorApiSavedOk) {
-                const options = { title: "", message: "Instructor Saved succssfully", detail: "" };
+                const options = { title: "", message: "Instructor Saved successfully", detail: "" };
                 try {
                     dialog.showMessageBox(null, options);
                 } catch (e) {

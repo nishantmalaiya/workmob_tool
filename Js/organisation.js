@@ -4,94 +4,132 @@ var remote = require('@electron/remote');
 const dialog = remote.dialog;
 let common = require('../js/config');
 let activePathS3 = common.getS3Path();
+let isFetching = false;
+let lastKey = '';
+let allRecords = [];
+const ORGANISATIONS_API_BASE = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/organisation_master";
 
 organisationMasterList();
 async function organisationMasterList() {
-    $('body').toggleClass('loaded');
-    var meta = await readS3BucketAsync("OrganisationMaster.json", "");
+    allRecords = [];
+    lastKey = '';
+    const header = `
+        <div class="storycardheader col-md-12 row">
+            <div class="col-md-7"><h4>Organisation</h4></div>
+            <div class="col-md-2"></div>
+            <div class="col-md-3"></div>
+            <hr>
+        </div>`;
+    $('#divStory').html(header);
 
-    $('body').toggleClass('loaded');
-    if (meta.err) {
-        console.log(meta.err);
+    fetchOrganisations();
+}
+
+async function fetchOrganisations() {
+    if (isFetching) return;
+    isFetching = true;
+    $('body').removeClass('loaded');
+
+    try {
+        let hasMore = true;
+        while (hasMore) {
+            const url = `${ORGANISATIONS_API_BASE}?lastKey=${encodeURIComponent(lastKey)}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`API failed: ${response.status}`);
+
+            const data = await response.json();
+            const batch = data.data || data.organisations || data.organisation_master || [];
+            
+            if (batch.length > 0) {
+                allRecords = [...allRecords, ...batch];
+                renderOrganisations(batch);
+            }
+
+            hasMore = data.hasMore;
+            lastKey = data.lastKey || '';
+            if (!hasMore) break;
+        }
+    } catch (e) {
+        console.error("Fetch error:", e);
+    } finally {
+        $('body').addClass('loaded');
+        isFetching = false;
     }
-    var storyCard = "";
-    storyCard = "<div class=\"storycardheader col-md-12 row\">";
-    storyCard = storyCard + "<div class=\"col-md-9\"><h4>Organisation</h4></div>";
-    storyCard = storyCard + "<div class=\"col-md-3\"></div>";
-    storyCard = storyCard + "<hr></div>";
-    $('#divStory').html(storyCard);
-    var storyCard = "";
-    $(JSON.parse(meta.data)).each(function () {
-        storyCard = storyCard + "<div class=\"col-md-9\">" + this.Organisation + "</div>";
-        storyCard = storyCard + "<div class=\"col-md-3\"><a href=\"#\" data-toggle=\"modal\" data-target=\"#organisationModal\" onclick=\"editOrganisation('" + this.Organisation + "','" + this.id + "')\">Edit</a></div>";
+}
+
+function renderOrganisations(records) {
+    let html = "";
+    records.forEach(item => {
+        html += `
+            <div class="storycard col-md-12 row column" id="${item.id}">
+                <div class="col-md-7">${item.Organisation}</div>
+                <div class="col-md-2">
+                    <a href="#" data-toggle="modal" data-target="#organisationModal" onclick="editOrganisation('${item.Organisation}', '${item.id}')">Edit</a>
+                </div>
+                <div class="col-md-3">
+                    <a href="#" onclick="deleteOrganisation('${item.id}')">Delete</a>
+                </div>
+                <hr>
+            </div>`;
     });
-    $('#divStory').append(storyCard);
+    $('#divStory').append(html);
+}
+
+async function deleteOrganisation(id) {
+    if (confirm("Are you sure you want to delete this organisation?")) {
+        $('body').removeClass('loaded');
+        try {
+            const url = `${ORGANISATIONS_API_BASE}/${encodeURIComponent(id)}`;
+            const response = await fetch(url, { method: "DELETE" });
+            if (response.ok) {
+                alert("Organisation deleted successfully");
+                organisationMasterList();
+            } else {
+                const data = await response.json();
+                alert("Error deleting: " + (data.error || data.msg || "Unknown error"));
+            }
+        } catch (e) {
+            console.error("Delete error:", e);
+        } finally {
+            $('body').addClass('loaded');
+        }
+    }
 }
 
 $("#btnSave").click(function () {
-    var vOrganisationMaster = [];
     validation(async function (cansave) {
         if (cansave.cansave) {
-            $('body').toggleClass('loaded');
-            var meta = await readS3BucketAsync("OrganisationMaster.json", "");
-            if (meta.err) {
-                console.log(meta.err);
-            }
-            else {
-                vOrganisationMaster = JSON.parse(meta.data);
-            }
-            if ($("#hdnOrganisationId").val() == "") {
-                var result = $(vOrganisationMaster).filter(function (item) {
-                    return item["id"] == cansave["item"]["id"];
-                });
-                if (result.length > 0) {
-                    alert("This Organisation already exist");
-                    return false;
-                }
-                else {
-                    vOrganisationMaster.push(cansave["item"]);
-                }
-                // const IsExists = await existsS3Bucket(`organisation/${cansave["item"]["organisation"].toLowerCase()}.json"`);
-                // if (!IsExists.isExists) {
-                //     var a = [];
-                //     await WriteS3Bucket(a, `organisation/${cansave["item"]["organisation"].toLowerCase()}.json"`);
-                // }
-            }
-            else {
-                for (var i = 0; i < vOrganisationMaster.length; i++) {
-                    if (vOrganisationMaster[i]["id"] == $("#hdnOrganisationId").val()) {
-                        vOrganisationMaster[i]["Organisation"] = cansave["item"]["Organisation"];
-                        break;
-                    }
-                }
-            }
-            await WriteS3Bucket(vOrganisationMaster, "OrganisationMaster.json");
-            $('#organisationModal').modal('hide');
-            $('body').toggleClass('loaded');
-            const options = { title: '', message: 'Organisation Saved succssfully', detail: '' };
+            $('body').removeClass('loaded');
             try {
-                dialog.showMessageBox(null, options);
-            } catch (e) {
-                console.log(e);
-                dialog.showMessageBox(null, options);
-            }
-            $('#organisationModal').find('#txtOrganisation').val("");
-            $('#organisationModal').find('#hdnOrganisationId').val("");
+                const isEdit = $("#hdnOrganisationId").val() != "";
+                const method = isEdit ? "PUT" : "POST";
+                const url = isEdit 
+                    ? `${ORGANISATIONS_API_BASE}/${encodeURIComponent($("#hdnOrganisationId").val())}`
+                    : ORGANISATIONS_API_BASE;
 
-            var storyCard = "";
-            storyCard = "<div class=\"storycardheader col-md-12 row\">";
-            storyCard = storyCard + "<div class=\"col-md-9\"><h4>Organisation</h4></div>";
-            storyCard = storyCard + "<div class=\"col-md-3\"></div>";
-            storyCard = storyCard + "<hr></div>";
-            $('#divStory').html(storyCard);
-            storyCard = "";
-            $(vOrganisationMaster).each(function () {
-                storyCard = storyCard + "<div class=\"col-md-9\">" + this.Organisation + "</div>";
-                storyCard = storyCard + "<div class=\"col-md-3\"><a href=\"#\" data-toggle=\"modal\" data-target=\"#organisationModal\" onclick=\"editOrganisation('" + this.Organisation + "','" + this.id + "')\">Edit</a></div>";
-            });
-            $('#divStory').append(storyCard);
-        }
-        else {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(cansave.item)
+                });
+
+                if (response.ok) {
+                    const options = { title: '', message: `Organisation ${isEdit ? 'Updated' : 'Saved'} successfully`, detail: '' };
+                    dialog.showMessageBox(null, options);
+                    $('#organisationModal').modal('hide');
+                    organisationMasterList();
+                } else {
+                    const data = await response.json();
+                    const errMsg = data.error || data.msg || "Unknown error";
+                    alert("Error saving: " + errMsg);
+                }
+            } catch (e) {
+                console.error("Save error:", e);
+                alert("Failed to save organisation");
+            } finally {
+                $('body').addClass('loaded');
+            }
+        } else {
             alert(cansave.msg);
         }
     });

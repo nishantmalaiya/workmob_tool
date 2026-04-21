@@ -12,7 +12,7 @@ bloghomeList();
 function bloghomeList() {
     //fs.readFile(pathName + "/blog-home.json", 'utf8', function (err, data) {
 
-    const url = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-blog-home";
+    const url = `${common.API_BASE_URL}/${activePathS3["blog-home"]}`;
     fetch(url)
         .then(response => response.json())
         .then(data => {
@@ -29,7 +29,7 @@ function bloghomeList() {
             // I will use `data` directly first, similar to how `JSON.parse` was used.
             // Wait, usually these APIs return the JSON object.
 
-            GlobalJSONObj = data.stories;
+            GlobalJSONObj = data.stories || data.data || data || [];
             // If the API returns a wrapped object like { stories: [...] }, this might need adjustment.
             // But based on "get data by this url", I'll assign the result.
 
@@ -102,19 +102,35 @@ function RenderStory(GlobalJSONObjBrow) {
 
 async function deleteStory(slug) {
     if (confirm("Are you sure you want to delete this?")) {
-        GlobalJSONObj = GlobalJSONObj.filter(function (itm) {
-            return itm.slug != slug;
-        });
-        var meta = await WriteS3Bucket(GlobalJSONObj, activePathS3["blog-home"]);
-        if (meta.err) {
-            return console.log(tt.err);
+        $('body').toggleClass('loaded');
+        const url = `${common.API_BASE_URL}/${activePathS3["blog-home"]}/${encodeURIComponent(slug)}`;
+
+        try {
+            const response = await fetch(url, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" }
+            });
+
+            if (!response.ok) {
+                const result = await response.json();
+                throw new Error(result.msg || `API delete failed with status ${response.status}`);
+            }
+
+            // Success: update local list and UI
+            GlobalJSONObj = GlobalJSONObj.filter(itm => itm.slug != slug);
+            $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
+            
+            var cols = document.querySelectorAll('#divStory .column');
+            [].forEach.call(cols, addDnDHandlers);
+            
+            console.log("Story removed from blog home successfully via API.");
+        } catch (error) {
+            console.error("Error deleting story from blog home:", error);
+            alert("Failed to remove story: " + error.message);
+        } finally {
+            $('body').toggleClass('loaded');
         }
-        $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
-        var cols = document.querySelectorAll('#divStory .column');
-        [].forEach.call(cols, addDnDHandlers);
-        console.log("The file was saved!");
-    }
-    else {
+    } else {
         return false;
     }
 }
@@ -180,29 +196,26 @@ $('#btnUpdateStory').on('click', ({ currentTarget }) => {
 $('#btnRemoveSelected').on('click', async function () {
     if (confirm('We will not be able restore! are you sure?')) {
         $('body').toggleClass('loaded');
-        $('[name="chkSlug"]:checked').each(async function () {
-            let deleteSlug = $(this).val();
-            GlobalJSONObj = GlobalJSONObj.filter(function (itm) {
-                return itm.slug != deleteSlug;
-            });
-            const SlugRawJson = await readS3BucketAsync(activePathS3["blog-home"], "");
-            if (SlugRawJson.err) {
-                console.log(SlugRawJson.err);
+        const selectedCheckboxes = $('[name="chkSlug"]:checked');
+        
+        for (let i = 0; i < selectedCheckboxes.length; i++) {
+            let deleteSlug = $(selectedCheckboxes[i]).val();
+            try {
+                const url = `${common.API_BASE_URL}/${activePathS3["blog-home"]}/${encodeURIComponent(deleteSlug)}`;
+                const response = await fetch(url, {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" }
+                });
+                
+                if (response.ok) {
+                    GlobalJSONObj = GlobalJSONObj.filter(itm => itm.slug != deleteSlug);
+                    console.log(`Deleted ${deleteSlug} from blog home via API.`);
+                }
+            } catch (e) {
+                console.error(`Error deleting story ${deleteSlug}:`, e);
             }
-            else {
-                try {
-                    SlugJson = JSON.parse(SlugRawJson.data);
-                    var master_categories = SlugJson["master_categories"];
-                    master_categories = master_categories.split(",");
-                    master_categories = master_categories.filter(function (itm) {
-                        return itm != $('#ddlCategory').val()
-                    });
-                    SlugJson["master_categories"] = master_categories.join(",");
-                    await WriteS3Bucket(SlugJson, activePathS3["blog-home"]);
-                } catch (e) { console.log(e); }
-            }
-        });
-        await WriteS3Bucket(GlobalJSONObj, activePathS3["blog-home"]);
+        }
+
         $('body').toggleClass('loaded');
         $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
         var cols = document.querySelectorAll('#divStory .column');
@@ -210,36 +223,31 @@ $('#btnRemoveSelected').on('click', async function () {
     }
 });
 $('#btnRemoveAll').on('click', async function () {
-    if ($('#ddlCategory').val() != "") {
-        if (confirm('Are You Sure!! All files will be deleted.')) {
-            $('body').toggleClass('loaded');
-            $('[name="chkSlug"]').each(async function () {
-                let deleteSlug = $(this).val();
-                GlobalJSONObj = GlobalJSONObj.filter(function (itm) {
-                    return itm.slug != deleteSlug;
+    if (confirm('Are You Sure!! All files will be deleted.')) {
+        $('body').toggleClass('loaded');
+        const allCheckboxes = $('[name="chkSlug"]');
+        
+        for (let i = 0; i < allCheckboxes.length; i++) {
+            let deleteSlug = $(allCheckboxes[i]).val();
+            try {
+                const url = `${common.API_BASE_URL}/${activePathS3["blog-home"]}/${encodeURIComponent(deleteSlug)}`;
+                const response = await fetch(url, {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" }
                 });
-                const SlugRawJson = await readS3BucketAsync(activePathS3["blog-home"], "");
-                if (SlugRawJson.err) {
-                    console.log(SlugRawJson.err);
+                
+                if (response.ok) {
+                    GlobalJSONObj = GlobalJSONObj.filter(itm => itm.slug != deleteSlug);
+                    console.log(`Deleted ${deleteSlug} from blog home via API.`);
                 }
-                else {
-                    try {
-                        SlugJson = JSON.parse(SlugRawJson.data);
-                        var master_categories = SlugJson["master_categories"];
-                        master_categories = master_categories.split(",");
-                        master_categories = master_categories.filter(function (itm) {
-                            return itm != $('#ddlCategory').val()
-                        });
-                        SlugJson["master_categories"] = master_categories.join(",");
-                        await WriteS3Bucket(SlugJson, activePathS3["blog-home"]);
-                    } catch (e) { console.log(e); }
-                }
-            });
-            await WriteS3Bucket(GlobalJSONObj, activePathS3["blog-home"]);
-            $('body').toggleClass('loaded');
-            $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
-            var cols = document.querySelectorAll('#divStory .column');
-            [].forEach.call(cols, addDnDHandlers);
+            } catch (e) {
+                console.error(`Error deleting story ${deleteSlug}:`, e);
+            }
         }
+
+        $('body').toggleClass('loaded');
+        $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
+        var cols = document.querySelectorAll('#divStory .column');
+        [].forEach.call(cols, addDnDHandlers);
     }
 });

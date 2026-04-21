@@ -7,11 +7,10 @@ let common = require('../js/config');
 let activePathS3 = common.getS3Path();
 
 let currentOffset = 0; // Tracks the current offset
-const limit = 100; // Number of records to fetch per request
-let allRecords = []; // To store fetched records
-let isFetching = false; // To prevent concurrent fetches
-let hasMore = false;
+let allRecords = []; 
+let isFetching = false; 
 let lastKey = '';
+const LOCATIONS_API_BASE = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations";
 locationMasterList();
 // async function locationMasterList() {
 //     debugger;
@@ -40,67 +39,50 @@ locationMasterList();
 
 async function locationMasterList() {
     // Reset initial state
-    currentOffset = 0;
     allRecords = [];
-    $('#divStory').html('');
+    lastKey = '';
+    let header = `
+        <div class="storycardheader col-md-12 row">
+            <div class="col-md-7"><h4>Location</h4></div>
+            <div class="col-md-2"></div>
+            <div class="col-md-3"></div>
+            <hr>
+        </div>`;
+    $('#divStory').html(header);
 
-    fetchAndRenderRecords(currentOffset, limit);
-
-    // Attach scroll event listener for lazy loading
-    let scrollTimeout;
-    $(window).on('scroll', function () {
-        if (scrollTimeout) clearTimeout(scrollTimeout);
-        scrollTimeout = setTimeout(() => {
-            if ($(window).scrollTop() + $(window).height() >= $(document).height() - 10) {
-                if (!isFetching) {
-                    fetchAndRenderRecords(currentOffset, limit);
-                }
-            }
-        }, 200); // Debounce scroll event by 200ms
-    });
+    fetchAndRenderRecords();
 }
 
 // Function to fetch and render records
-async function fetchAndRenderRecords(offset, limit) {
-    if (isFetching) return; // Prevent overlapping requests
+async function fetchAndRenderRecords() {
+    if (isFetching) return;
     isFetching = true;
-    $('body').toggleClass('loaded');
+    $('body').removeClass('loaded');
 
     try {
-        // Construct the API URL with offset and limit parameters
-        let apiUrl = {};
-        apiUrl = `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations?limit=${limit}&lastKey=${encodeURIComponent(lastKey)}`;
+        let hasMore = true;
+        while (hasMore) {
+            const url = `${LOCATIONS_API_BASE}?lastKey=${encodeURIComponent(lastKey)}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`API failed: ${response.status}`);
 
-        // Fetch data from the API
-        const response = await fetch(apiUrl);
-        if (!response.ok) {
-            throw new Error(`API request failed with status ${response.status}`);
-        }
+            const data = await response.json();
+            const records = data.data || data.locations || [];
+            
+            if (records.length > 0) {
+                allRecords = [...allRecords, ...records];
+                renderData(records);
+            }
 
-        const data = await response.json();
-        $('body').toggleClass('loaded');
-
-        // Assuming the API returns an array of records directly
-        hasMore = data.hasMore;
-        lastKey = data.lastKey;
-        const recordsToAppend = data.locations; // The API should return the paginated results
-
-        if (recordsToAppend.length > 0) {
-            allRecords = [...allRecords, ...recordsToAppend]; // Update all records
-            renderData(recordsToAppend); // Render the new records
-            currentOffset += limit; // Increment offset for the next batch
-        } else {
-            console.log("No more records to load.");
+            hasMore = data.hasMore;
+            lastKey = data.lastKey || '';
+            if (!hasMore) break;
         }
     } catch (error) {
-        $('body').toggleClass('loaded');
         console.error("Error fetching records:", error);
     } finally {
-        if (hasMore) {
-            isFetching = false; // Reset fetching status
-        } else {
-            isFetching = true; // Reset fetching status
-        }
+        $('body').addClass('loaded');
+        isFetching = false;
     }
 }
 // async function fetchAndRenderRecords(offset, limit) {
@@ -139,85 +121,80 @@ async function fetchAndRenderRecords(offset, limit) {
 function renderData(newRecords) {
     let storyCard = "";
 
-    // Generate HTML for new records
     newRecords.forEach(record => {
-        storyCard += `<div class="col-md-9">${record.location}</div>`;
-        storyCard += `<div class="col-md-3">
-            <a href="#" data-toggle="modal" data-target="#locationModal" onclick="editLocation('${record.location}', '${record.id}')">Edit</a>
-        </div>`;
+        storyCard += `
+            <div class="storycard col-md-12 row column" id="${record.id}">
+                <div class="col-md-7">${record.location}</div>
+                <div class="col-md-2">
+                    <a href="#" data-toggle="modal" data-target="#locationModal" onclick="editLocation('${record.location}', '${record.id}')">Edit</a>
+                </div>
+                <div class="col-md-3">
+                    <a href="#" onclick="deleteLocation('${record.id}')">Delete</a>
+                </div>
+                <hr>
+            </div>`;
     });
 
     $('#divStory').append(storyCard);
 }
 
+async function deleteLocation(id) {
+    if (confirm("Are you sure you want to delete this location?")) {
+        $('body').addClass('loaded');
+        try {
+            const url = `${LOCATIONS_API_BASE}/${encodeURIComponent(id)}`;
+            const response = await fetch(url, { method: "DELETE" });
+            if (response.ok) {
+                alert("Location deleted successfully");
+                locationMasterList();
+            } else {
+                const data = await response.json();
+                alert("Error deleting: " + (data.msg || "Unknown error"));
+            }
+        } catch (e) {
+            console.error("Delete error:", e);
+        } finally {
+            $('body').removeClass('loaded');
+        }
+    }
+}
+
 
 
 $("#btnSave").click(function () {
-    var vlocationMaster = [];
     validation(async function (cansave) {
         if (cansave.cansave) {
-            $('body').toggleClass('loaded');
-            var meta = await readS3BucketAsync("LocationMaster.json", "");
-            if (meta.err) {
-                console.log(meta.err);
-            }
-            else {
-                vlocationMaster = JSON.parse(meta.data);
-            }
-            if ($("#hdnLocationId").val() == "") {
-
-                
-                // var result = $(vlocationMaster).filter(function (item) {
-                //     return item["id"] == cansave["item"]["id"];
-                // });
-                // if (result.length > 0) {
-                //     alert("This Location already exist");
-                //     return false;
-                // }
-                // else {
-                //     vlocationMaster.push(cansave["item"]);
-                // }
-                // const IsExists = await existsS3Bucket(`location/${cansave["item"]["location"].toLowerCase()}.json"`);
-                // if (!IsExists.isExists) {
-                //     var a = [];
-                //     await WriteS3Bucket(a, `location/${cansave["item"]["location"].toLowerCase()}.json"`);
-                // }
-            }
-            else {
-                for (var i = 0; i < vlocationMaster.length; i++) {
-                    if (vlocationMaster[i]["id"] == $("#hdnLocationId").val()) {
-                        vlocationMaster[i]["location"] = cansave["item"]["location"];
-                        break;
-                    }
-                }
-            }
-            await WriteS3Bucket(vlocationMaster, "LocationMaster.json");
-            $('#locationModal').modal('hide');
-            $('body').toggleClass('loaded');
-            const options = { title: '', message: 'Category Saved succssfully', detail: '' };
+            $('body').addClass('loaded');
             try {
-                dialog.showMessageBox(null, options);
-            } catch (e) {
-                console.log(e);
-                dialog.showMessageBox(null, options);
-            }
-            $('#locationModal').find('#txtLocation').val("");
-            $('#locationModal').find('#hdnLocationId').val("");
+                const isEdit = $("#hdnLocationId").val() != "";
+                const method = isEdit ? "PUT" : "POST";
+                const url = isEdit 
+                    ? `${LOCATIONS_API_BASE}/${encodeURIComponent($("#hdnLocationId").val())}`
+                    : LOCATIONS_API_BASE;
 
-            var storyCard = "";
-            storyCard = "<div class=\"storycardheader col-md-12 row\">";
-            storyCard = storyCard + "<div class=\"col-md-9\"><h4>Location</h4></div>";
-            storyCard = storyCard + "<div class=\"col-md-3\"></div>";
-            storyCard = storyCard + "<hr></div>";
-            $('#divStory').html(storyCard);
-            storyCard = "";
-            $(vlocationMaster).each(function () {
-                storyCard = storyCard + "<div class=\"col-md-9\">" + this.location + "</div>";
-                storyCard = storyCard + "<div class=\"col-md-3\"><a href=\"#\" data-toggle=\"modal\" data-target=\"#locationModal\" onclick=\"editLocation('" + this.location + "','" + this.id + "')\">Edit</a></div>";
-            });
-            $('#divStory').append(storyCard);
-        }
-        else {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(cansave.item)
+                });
+
+                if (response.ok) {
+                    const options = { title: '', message: `Location ${isEdit ? 'Updated' : 'Saved'} successfully`, detail: '' };
+                    dialog.showMessageBox(null, options);
+                    $('#locationModal').modal('hide');
+                    locationMasterList(); // Refresh the list
+                } else {
+                    const data = await response.json();
+                    const errMsg = data.error || data.msg || "Unknown error";
+                    alert("Error saving: " + errMsg);
+                }
+            } catch (e) {
+                console.error("Save error:", e);
+                alert("Failed to save location");
+            } finally {
+                $('body').addClass('loaded');
+            }
+        } else {
             alert(cansave.msg);
         }
     });

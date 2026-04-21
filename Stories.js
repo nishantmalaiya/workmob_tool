@@ -29,9 +29,9 @@ async function locationMasterList() {
   allRecords = [];
   $('.single').html('');
   console.log('type' + type)
-  if (type == 'default' || type == 'audio') {
+  if (type == 'default' || type == 'audio' || type == 'gyan') {
     GetCategoryList(currentOffset, limit);
-  } else if (type == 'gyan' || type == 'hope' || type == 'namaste' || type == 'promotion') {
+  } else if (type == 'hope' || type == 'namaste' || type == 'promotion') {
     GetFromS3CategoryList();
   }
 }
@@ -46,9 +46,12 @@ function GetCategoryList(offset, limit) {
     dropdown.append('<div class="dropdown-loader"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid" width="30" height="30" style="shape-rendering: auto; display: block; background: rgb(255, 255, 255);margin: 0 auto;" xmlns:xlink="http://www.w3.org/1999/xlink"><g><circle stroke-dasharray="164.93361431346415 56.97787143782138" r="35" stroke-width="10" stroke="#337ab7" fill="none" cy="50" cx="50"><animateTransform keyTimes="0;1" values="0 50 50;360 50 50" dur="1s" repeatCount="indefinite" type="rotate" attributeName="transform"></animateTransform></circle><g></g></g></svg></div>');
   }
 
-  const url = type === 'audio'
-    ? `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/audio-category`
-    : `https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories?limit=${limit}&lastKey=${encodeURIComponent(lastKey)}`;
+  let apiName = activePathS3.category;
+  if (type === 'gyan') {
+    apiName = `add-${apiName}`;
+  }
+  const baseCategoryUrl = `${common.API_BASE_URL}/${apiName}`;
+  const url = baseCategoryUrl;
 
   fetch(url)
     .then(response => response.json())
@@ -58,7 +61,7 @@ function GetCategoryList(offset, limit) {
 
      // var JSON_ObjCategory = data.categories;
 
-      const JSON_ObjCategory = type === 'audio'?data.data:data.categories
+      const JSON_ObjCategory = (type === 'audio' || type === 'gyan' ? data.data : data.categories) || [];
 
       if (!selectizeInstance) {
         // First load: Build HTML, initialize Selectize
@@ -281,7 +284,8 @@ function fetchAndRenderRecords(categoryValue, offset, limit) {
   // use response.text() and then JSON.parse, similar to the original readS3Bucket approach.
   // Also, added error handling for JSON parsing.
 
-  fetch('https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories/' + categoryValue)
+  const apiName = activePathS3.category.replace('.json', '');
+  fetch(`${common.API_BASE_URL}/categories/${categoryValue}`)
     .then(response => {
       if (!response.ok) {
         throw new Error('Network response was not ok');
@@ -301,8 +305,19 @@ function fetchAndRenderRecords(categoryValue, offset, limit) {
         //     return console.log(data.err);
         // }
 
-        JSON_Obj = data.stories; // The array of stories
-        const recordsToAppend = JSON_Obj.slice(offset, offset + limit);
+        if (data.stories) {
+          JSON_Obj = data.stories;
+        } else if (data.data && Array.isArray(data.data)) {
+          JSON_Obj = data.data;
+        } else if (Array.isArray(data)) {
+          JSON_Obj = data;
+        } else {
+          JSON_Obj = [];
+        }
+
+        const recordsToAppend = (JSON_Obj && typeof JSON_Obj.slice === 'function') 
+          ? JSON_Obj.slice(offset, offset + limit) 
+          : [];
 
         // Append and render records if available
         if (recordsToAppend.length > 0) {
@@ -312,8 +327,8 @@ function fetchAndRenderRecords(categoryValue, offset, limit) {
         }
 
         // If data.hasMore, you can set a flag to fetch more on next load, e.g., if (data.hasMore) { canLoadMore = true; lastKey = data.lastKey; }
-      } catch (parseErr) {
-        console.log('JSON parse error:', parseErr);
+      } catch (err) {
+        console.error('Error processing response:', err);
         $('#ddlCity').html('');
         $('#divStory').html('');
       }
@@ -450,7 +465,7 @@ async function ApplyFilter() {
     }
     try {
       $('body').removeClass('loaded');
-      const response = await fetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories?name=${name}`);
+      const response = await fetch(`${common.API_BASE_URL}/stories?name=${name}`);
       const checkData = await response.json();
       $('body').addClass('loaded');
 
@@ -488,7 +503,7 @@ async function ApplyFilter() {
     const slug = $('#txtSlug').val();
     try {
       $('body').removeClass('loaded');
-      const response = await fetch(`https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories/${slug}`);
+      const response = await fetch(`${common.API_BASE_URL}/stories/${slug}`);
       const checkData = await response.json();
       $('body').addClass('loaded');
 

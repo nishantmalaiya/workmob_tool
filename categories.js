@@ -44,7 +44,7 @@ let hasMoreRecords = true;
 
 function GetCategoriesList() {
     //debugger;
-    const url = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories";
+    const url = `${common.API_BASE_URL}/categories`;
 
     fetch(url)
         .then(response => response.json())
@@ -80,7 +80,7 @@ $('#ddlCategory').on('change', function () {
 
 
 
-        let url = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories/" + $(this).val();
+        let url = `${common.API_BASE_URL}/categories/${$(this).val()}`;
         if (typeof lastEvaluatedKey !== 'undefined' && lastEvaluatedKey) {
             url += "?lastEvaluatedKey=" + encodeURIComponent(JSON.stringify(lastEvaluatedKey));
         }
@@ -92,8 +92,9 @@ $('#ddlCategory').on('change', function () {
                 $('body').toggleClass('loaded');
 
                 // Append and render records if available
-                if (json.stories && json.stories.length > 0) {
-                    GlobalJSONObj = json.stories; // Assign directly, do not parse
+                let fetchedStories = json.stories || json.data || [];
+                if (fetchedStories.length > 0) {
+                    GlobalJSONObj = fetchedStories; // Assign directly, do not parse
                     $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
                     var cols = document.querySelectorAll('#divStory .column');
                     [].forEach.call(cols, addDnDHandlers);
@@ -174,38 +175,38 @@ function RenderStory(JSON_ObjBrow) {
 
 async function deleteStory(slug) {
     if (confirm("Are you sure you want to delete this?")) {
-        GlobalJSONObj = GlobalJSONObj.filter(function (itm) {
-            return itm.slug != slug;
-        });
-        $('body').toggleClass('loaded');
+        const category = $('#ddlCategory').val();
+        if (!category) return;
 
-        const SlugRawJson = await readS3BucketAsync(activePathS3["story-detail"] + slug + ".json", "");
-        if (SlugRawJson.err) {
-            console.log(SlugRawJson.err);
-        }
-        else {
-            try {
-                SlugJson = JSON.parse(SlugRawJson.data);
-                var master_categories = SlugJson["master_categories"];
-                master_categories = master_categories.split(",");
-                master_categories = master_categories.filter(function (itm) {
-                    return itm != $('#ddlCategory').val()
-                });
-                SlugJson["master_categories"] = master_categories.join(",");
-                await WriteS3Bucket(SlugJson, activePathS3["story-detail"] + slug + ".json");
-            } catch (e) { }
-        }
-        var meta = await WriteS3Bucket(GlobalJSONObj, JSON_FileSlug);
         $('body').toggleClass('loaded');
-        if (meta.err) {
-            return console.log(tt.err);
+        const url = `${common.API_BASE_URL}/categories/${encodeURIComponent(category)}/${encodeURIComponent(slug)}`;
+
+        try {
+            const response = await fetch(url, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" }
+            });
+
+            if (!response.ok) {
+                const result = await response.json();
+                throw new Error(result.msg || `API delete failed with status ${response.status}`);
+            }
+
+            // Success: update local list and UI
+            GlobalJSONObj = GlobalJSONObj.filter(itm => itm.slug != slug);
+            $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
+            
+            var cols = document.querySelectorAll('#divStory .column');
+            [].forEach.call(cols, addDnDHandlers);
+            
+            console.log("Story removed from category successfully via API.");
+        } catch (error) {
+            console.error("Error deleting story from category:", error);
+            alert("Failed to remove story: " + error.message);
+        } finally {
+            $('body').toggleClass('loaded');
         }
-        $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
-        var cols = document.querySelectorAll('#divStory .column');
-        [].forEach.call(cols, addDnDHandlers);
-        console.log("The file was saved!");
-    }
-    else {
+    } else {
         return false;
     }
 }

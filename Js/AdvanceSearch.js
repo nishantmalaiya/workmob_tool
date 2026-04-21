@@ -27,8 +27,15 @@ let MasterJson = null;
 GetCategoryList();
 
 $(async () => {
-    let rawdataConfing = await readS3BucketAsync(activePathS3["config"], "");
-    configJson = JSON.parse(rawdataConfing.data);
+    try {
+        const configUrl = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/add-config";
+        const response = await fetch(configUrl);
+        const data = await response.json();
+        // Handle { data: [ { ... } ], ... } response structure
+        configJson = (data.data && Array.isArray(data.data)) ? data.data[0] : (data.data || data);
+    } catch (e) {
+        console.error("Error fetching config:", e);
+    }
     await CheckSlugStory();
 
 
@@ -45,7 +52,7 @@ $(async () => {
     try {
         let response = await fetch(url);
         let data = await response.json();
-        MasterJson = data.stories;
+        MasterJson = data.stories || data.data || data || [];
         BindAllCity();
     } catch (e) {
         console.log(e);
@@ -122,7 +129,7 @@ $('#ddlCategory').on('change', function () {
                     var cityList = [];
                     var city = [];
                     city.push("<option value=\"\">All</option>");
-                    JSON_Obj = data.stories; //JSON.parse(json.data);
+                    JSON_Obj = data.stories || data.data || data || [];
                     for (let index = 0; index < JSON_Obj.length; index++) {
                         var _story = JSON_Obj[index];
                         if (cityList.indexOf(_story.location) == -1) {
@@ -131,6 +138,11 @@ $('#ddlCategory').on('change', function () {
                         }
                     }
                     $('#divStory').html(RenderStory(JSON_Obj).join(" "));
+
+                    // Destroy existing Selectize instance if it exists
+                    if ($('#ddlCity')[0].selectize) {
+                         $('#ddlCity')[0].selectize.destroy();
+                    }
 
                     $('#ddlCity').html(city.join(" "));
                     var $select = $("#ddlCity").selectize({
@@ -411,7 +423,7 @@ async function CheckSlugStory(slug) {
             if (url) {
                 response = await fetch(url);
                 data = await response.json();
-                fileJson = data.stories;
+                fileJson = data.stories || data.data || data || [];
             } else {
                 // Fallback to S3 read if no URL match (though based on checkboxes it should match)
                 // Or keep original logic just for 'isExists' check?
@@ -636,6 +648,12 @@ let BindAllCity = () => {
         }
     }
     $('#divStory').html("");
+    
+    // Destroy existing Selectize instance if it exists
+    if ($('#ddlCity')[0].selectize) {
+         $('#ddlCity')[0].selectize.destroy();
+    }
+
     $('#ddlCity').html(city.join(" "));
     var $select = $("#ddlCity").selectize({
         sortField: 'text',
