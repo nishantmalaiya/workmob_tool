@@ -7,7 +7,7 @@ var remote = require('@electron/remote');
 const ipcRenderer = require('electron').ipcRenderer;
 var pathName = remote.getGlobal('sharedObj').pathName;
 const dialog = remote.dialog;
-let common = require('../js/config');
+let common = require('../Js/config');
 let activePathS3 = common.getS3Path();
 var JSON_FileName = null;
 var JSON_FileSlug = null;
@@ -28,7 +28,7 @@ GetCategoryList();
 
 $(async () => {
     try {
-        const configUrl = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/add-config";
+        const configUrl = `${common.API_BASE_URL}/${activePathS3["config"].replace(".json", "")}`;
         const response = await fetch(configUrl);
         const data = await response.json();
         // Handle { data: [ { ... } ], ... } response structure
@@ -48,11 +48,12 @@ $(async () => {
     //     BindAllCity();
     // }
 
-    const url = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories?limit=100";
+    const storiesEndpoint = (activePathS3.stories || "stories").replace(".json", "");
+    const url = `${common.API_BASE_URL}/${storiesEndpoint}?limit=50`;
     try {
         let response = await fetch(url);
         let data = await response.json();
-        MasterJson = data.stories || data.data || data || [];
+        MasterJson = data.data || data.stories || data || [];
         BindAllCity();
     } catch (e) {
         console.log(e);
@@ -60,14 +61,13 @@ $(async () => {
 });
 
 function GetCategoryList() {
-    // readS3Bucket(activePathS3.category, function (json) {
-    const url = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories";
+    const url = `${common.API_BASE_URL}/${(activePathS3.category || "categories").replace(".json", "")}`;
     fetch(url)
         .then(response => response.json())
         .then(data => {
             var element = [];
             element.push("<option value=\"\">select</option>");
-            var JSON_ObjCategory = data.categories; // JSON.parse(json.data);
+            var JSON_ObjCategory = data.data || data.categories || []; 
             for (let index = 0; index < JSON_ObjCategory.length; index++) {
                 var _category = JSON_ObjCategory[index];
                 element.push("<option value=\"" + _category.category + "\">" + _category.title + "</option>");
@@ -116,7 +116,10 @@ $('#ddlCategory').on('change', function () {
         try {
             // readS3Bucket(activePathS3["category-index"] + $(this).val() + ".json", function (json) {
 
-            const url = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories/" + $(this).val();
+            let endpoint = (activePathS3["category-index"] || "categories/").replace(/\//g, "");
+            // if (!endpoint.endsWith('s')) endpoint += 's'; // Fixed: removed extra 's' addition
+
+            const url = `${common.API_BASE_URL}/${endpoint}/${$(this).val()}`;
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
@@ -411,32 +414,25 @@ async function CheckSlugStory(slug) {
             let data = null;
 
             if (storyAlsoOn[i].chkbox == "storiestop") {
-                url = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-top";
+                url = `${common.API_BASE_URL}/${(activePathS3["stories-top"] || "stories-top").replace(".json", "")}`;
             } else if (storyAlsoOn[i].chkbox == "storiestending") {
-                url = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-trending";
+                url = `${common.API_BASE_URL}/${(activePathS3["trending"] || "stories-trending").replace(".json", "")}`;
             } else if (storyAlsoOn[i].chkbox == "storiesMobileHomeScreen") {
-                url = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-mobile-home";
+                url = `${common.API_BASE_URL}/${(activePathS3["mobile-home"] || "stories-mobile-home").replace(".json", "")}`;
             } else if (storyAlsoOn[i].chkbox == "bloghome") {
-                url = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/stories-blog-home";
+                url = `${common.API_BASE_URL}/${(activePathS3["blog-home"] || "stories-blog-home").replace(".json", "")}`;
             }
 
             if (url) {
                 response = await fetch(url);
                 data = await response.json();
-                fileJson = data.stories || data.data || data || [];
+                fileJson = data.data || data.stories || data || [];
             } else {
-                // Fallback to S3 read if no URL match (though based on checkboxes it should match)
-                // Or keep original logic just for 'isExists' check?
-                // The prompt requested replacing endpoints.
-                // Assuming we fetch all and check existence in the fetched array.
-                // But wait, the original logic checks if file exists first, then reads content. 
-                // API endpoints always exist, but return data.
-                // let's assume we proceed as if 'isExists' is true if we get data.
             }
 
             // Replicating logic using API data
             if (fileJson) {
-                var chkbox = $('#hiddenDiv [name="' + storyAlsoOn[i]["chkbox"] + '"]'); // Used 'i' instead of '_index' as we loop directly
+                var chkbox = $('#hiddenDiv [name="' + storyAlsoOn[i]["chkbox"] + '"]'); 
                 var existingCount = parseInt(fileJson.length);
                 var MaxCount = parseInt(configJson[storyAlsoOn[i]["chkbox"]]);
                 if (MaxCount > existingCount) {

@@ -6,8 +6,9 @@ var session = remote.session;
 var app = remote.app;
 var ipcRenderer = require('electron').ipcRenderer;
 const dialog = remote.dialog;
-let common = require('./js/config');
+let common = require('./Js/config');
 let activePathS3 = common.getS3Path();
+var type = remote.getGlobal("sharedObj").currentStory;
 
 let currentOffset = 0; // Tracks the current offset
 const limit = 50; // Number of records to fetch per request
@@ -93,7 +94,12 @@ async function deleteCat(cname) {
     if (confirm("Are you sure you want to delete this?")) {
         $('body').toggleClass('loaded');
         try {
-            const url = `${common.API_BASE_URL}/categories/${encodeURIComponent(cname)}`;
+            const categoryEndpoint = (activePathS3.category || "categories").replace(".json", "");
+            const categoryDetailEndpoint = (activePathS3["category-detail"] || categoryEndpoint).replace(".json", "");
+            const url = (type === "default") 
+                ? `${common.API_BASE_URL}/categories/${encodeURIComponent(cname)}`
+                : `${common.API_BASE_URL}/${categoryDetailEndpoint}/${encodeURIComponent(cname)}`;
+
             const response = await fetch(url, {
                 method: "DELETE"
             });
@@ -124,11 +130,11 @@ const pageSize = 100; // Number of items per page
 async function categorymasterList() {
     $('body').toggleClass('loaded');
     try {
-        const url = common.API_BASE_URL + "/categories";
+        const url = `${common.API_BASE_URL}/${activePathS3.category}`;
         const response = await fetch(url);
         const data = await response.json();
 
-        const categories = data.categories || data.data || data || [];
+        const categories = data.data || data.categories || (Array.isArray(data) ? data : []);
 
         var storyCard = "";
         storyCard = "<div class=\"storycardheader col-md-12 row\">";
@@ -262,7 +268,8 @@ $("#btnSave").click(function () {
                     let file = path.join(pathName, activePathS3["category"]);
                     var finalJson = [];
 
-                    const categoriesUrl = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/categories";
+                    const categoryEndpoint = (activePathS3.category || "categories").replace(".json", "");
+                    const categoriesUrl = `${common.API_BASE_URL}/${categoryEndpoint}`;
                     const categoriesResponse = await fetch(categoriesUrl);
                     const categoriesData = await categoriesResponse.json();
                     finalJson = categoriesData.categories || categoriesData.data || categoriesData || [];
@@ -272,7 +279,7 @@ $("#btnSave").click(function () {
                     var title = $("#title").val();
                     var title_hindi = $("#title_hindi").val();
 
-                    JSONobjCat["category"] = categoryNew;
+                    JSONobjCat["category"] = _category;
                     JSONobjCat["title"] = title;
                     JSONobjCat["title_hindi"] = title_hindi;
                     finalJson.push(JSONobjCat);
@@ -283,7 +290,8 @@ $("#btnSave").click(function () {
 
                     $('body').toggleClass('loaded');
                     try {
-                        const response = await fetch(common.API_BASE_URL + "/categories", {
+                        const categoryEndpoint = (activePathS3.category || "categories").replace(".json", "");
+                        const response = await fetch(`${common.API_BASE_URL}/${categoryEndpoint}`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify(JSONobjCat)
@@ -316,7 +324,12 @@ $("#btnSave").click(function () {
                 };
 
                 try {
-                    const url = `${common.API_BASE_URL}/categories/${encodeURIComponent(_category)}`;
+                    const categoryEndpoint = (activePathS3.category || "categories").replace(".json", "");
+                    const categoryDetailEndpoint = (activePathS3["category-detail"] || categoryEndpoint).replace(".json", "");
+                    const url = (type === "default") 
+                        ? `${common.API_BASE_URL}/categories/${encodeURIComponent(_category)}`
+                        : `${common.API_BASE_URL}/${categoryDetailEndpoint}/${encodeURIComponent(_category)}`;
+
                     const response = await fetch(url, {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },

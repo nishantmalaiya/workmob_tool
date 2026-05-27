@@ -7,14 +7,16 @@ const path = require("path");
 //const { setInterval, clearInterval } = require("timers");
 const ipcRenderer = require("electron").ipcRenderer;
 var pathName = remote.getGlobal("sharedObj").pathName;
-console.log("pathName", pathName)
+
 const dialog = remote.dialog;
-let common = require("./js/config");
+let common = require("./Js/config");
 let activePathS3 = common.getS3Path();
+var type = remote.getGlobal("sharedObj").currentStory;
 
 /** Set to false before release — fills add-story popup with dummy data for local testing */
-const TEST_PREFILL_STORY = false;
+const TEST_PREFILL_STORY = true;
 let editSlug = "";
+let editItemId = "";
 
 function prefillStoryTestData() {
     console.log("Prefilling testing data for story...");
@@ -73,15 +75,30 @@ function apiFetch(url, options = {}) {
 
 const API_BASE_URL = common.API_BASE_URL;
 
-const LOCATIONS_API_BASE = `${API_BASE_URL}/` + activePathS3["location"];
-const ORGANISATIONS_API_BASE = `${API_BASE_URL}/` + activePathS3["organisation"];
-const CATEGORIES_API_BASE = `${API_BASE_URL}/` + activePathS3["category"].replace("category.json", "categories");
-const INSTRUCTORS_API_BASE = `${API_BASE_URL}/` + activePathS3["instructor"].replace("instructor.js", "instructors");
+const getEndpoint = (key) => {
+    let name = activePathS3[key] || "";
+    return name.replace(".json", "").replace(".js", "");
+};
+
+const CATEGORIES_LIST_API_BASE = `${API_BASE_URL}/${(activePathS3["category"] || activePathS3["category-index"] || "categories").replace(/\//g, "").replace(".json", "")}`;
+const CATEGORIES_API_BASE = `${API_BASE_URL}/${(activePathS3["category-index"] || activePathS3["category"] || "categories").replace(/\//g, "").replace(".json", "")}`;
+
+
+const INSTRUCTORS_API_BASE = (() => {
+    let base = getEndpoint("instructor");
+    if (base === "instructor") base = "instructors";
+    return `${API_BASE_URL}/${base}`;
+})();
+
+const LOCATIONS_API_BASE = `${API_BASE_URL}/locations`;
+const ORGANISATIONS_API_BASE = `${API_BASE_URL}/organisation`;
 const ORGANISATION_MASTER_API_BASE = `${API_BASE_URL}/organisation_master`;
-const MASTER_TAG_API_BASE = `${API_BASE_URL}/` + activePathS3["TagsMaster"].replace("tags_master.json", "master_tag");
-const STORY_DETAIL_API_BASE = `${API_BASE_URL}/` + activePathS3["story-detail"].replace(/\/$/, "");
+const MASTER_TAG_API_BASE = `${API_BASE_URL}/master_tag`;
+const STORY_DETAIL_API_BASE = `${API_BASE_URL}/${(activePathS3["story-detail"] || "stories").replace(/\//g, "").replace(".json", "")}`;
 const TAG_DETAIL_API_BASE = `${API_BASE_URL}/tag_detail`;
-const masterStoriesApiUrl = `${API_BASE_URL}/` + activePathS3["MasterIndex"].replace("MasterIndex.json", "stories");
+//const masterStoriesApiUrl = `${API_BASE_URL}/${((type === "default" ? (activePathS3.stories || "stories") : (activePathS3["story-detail"] || "stories"))).replace(/\//g, "").replace(".json", "")}`;
+
+const masterStoriesApiUrl = `${API_BASE_URL}/${(activePathS3["stories"] || "stories")}`;
 
 /** Normalize dropdown value to API path slug (matches saveOnTags_Location / delete helpers). */
 function normalizeLocationSlug(filename) {
@@ -113,6 +130,18 @@ function locationDetailPostUrl(locationSlug, detailSlug) {
 function tagDetailPostUrl(tagSlug, detailSlug) {
     const id = slugify(tagSlug);
     const base = `${TAG_DETAIL_API_BASE}/${encodeURIComponent(id)}`;
+    return base;
+}
+
+/**
+ * Organisation detail URL: /organisation_master/{orgId}/{detailSlug}
+ */
+function organisationDetailPostUrl(orgSlug, detailSlug) {
+    const id = String(orgSlug || "").trim().toLowerCase().replace(/ /g, "_");
+    const base = `${ORGANISATION_MASTER_API_BASE}/${encodeURIComponent(id)}`;
+    if (detailSlug != null && String(detailSlug).trim() !== "") {
+        return `${base}/${encodeURIComponent(normalizeDetailPathSegment(detailSlug))}`;
+    }
     return base;
 }
 
@@ -157,6 +186,10 @@ async function logApiError(response, label) {
     }
     console.error(label || "API error", response.status, parsed);
 }
+
+
+
+
 const storyFeedApiUrls = {
     storiestop: `${API_BASE_URL}/` + activePathS3["stories-top"],
     storiestending: `${API_BASE_URL}/` + activePathS3["trending"],
@@ -165,14 +198,13 @@ const storyFeedApiUrls = {
     storieshope: `${API_BASE_URL}/` + activePathS3["stories-hope"].replace(".json", ""),
     storiesgyan: `${API_BASE_URL}/` + activePathS3["stories-gyan"].replace(".json", ""),
     storiesnamaste: `${API_BASE_URL}/` + activePathS3["stories-namaste"].replace(".json", ""),
-    storiespromotion: `${API_BASE_URL}/` + activePathS3["stories-promotion"].replace(".json", "")
+    // storiespromotion: `${API_BASE_URL}/` + activePathS3["stories-promotion"].replace(".json", "")
 };
 /** Master index list/detail (replaces S3 `activePathS3["MasterIndex"]` for load / visibility / delete). */
 var storyAlsoOn = [];
 var storyInAllJson = [];
 var Need_subCategory_in = ["namaste", "promotion"];
 var Need_trending_in = ["gyan", "hope", "namaste", "promotion"];
-var type = remote.getGlobal("sharedObj").currentStory;
 storyAlsoOn.push({ chkbox: "storiestop", file: storyFeedApiUrls.storiestop, isExist: false, index: "-1", total: "0", label: "Stories Top", CanAdd: false, });
 storyAlsoOn.push({ chkbox: "storiestending", file: storyFeedApiUrls.storiestending, isExist: false, index: "-1", total: "0", label: "Trending", CanAdd: false, });
 storyAlsoOn.push({ chkbox: "storiesMobileHomeScreen", file: storyFeedApiUrls.storiesMobileHomeScreen, isExist: false, index: "-1", total: "0", label: "Mobile Home Screen", CanAdd: false, });
@@ -182,7 +214,7 @@ if (Need_trending_in.indexOf(type) != -1) {
     storyAlsoOn.push({ chkbox: "storieshope", file: storyFeedApiUrls.storieshope, isExist: false, index: "-1", total: "0", label: "Hope", CanAdd: false, });
     storyAlsoOn.push({ chkbox: "storiesgyan", file: storyFeedApiUrls.storiesgyan, isExist: false, index: "-1", total: "0", label: "Gyan", CanAdd: false, });
     storyAlsoOn.push({ chkbox: "storiesnamaste", file: storyFeedApiUrls.storiesnamaste, isExist: false, index: "-1", total: "0", label: "Namaste", CanAdd: false, });
-    storyAlsoOn.push({ chkbox: "storiespromotion", file: storyFeedApiUrls.storiespromotion, isExist: false, index: "-1", total: "0", label: "Promotion", CanAdd: false, });
+    // storyAlsoOn.push({ chkbox: "storiespromotion", file: storyFeedApiUrls.storiespromotion, isExist: false, index: "-1", total: "0", label: "Promotion", CanAdd: false, });
 
 }
 
@@ -195,12 +227,13 @@ storyInAllJson.push({ file: ORGANISATIONS_API_BASE });
 storyInAllJson.push({ file: storyFeedApiUrls.storieshope });
 storyInAllJson.push({ file: storyFeedApiUrls.storiesgyan });
 storyInAllJson.push({ file: storyFeedApiUrls.storiesnamaste });
-storyInAllJson.push({ file: storyFeedApiUrls.storiespromotion });
+// storyInAllJson.push({ file: storyFeedApiUrls.storiespromotion });
 
 
 let _masterCategory = [];
 let _instructorList = [];
 let _subcategoryList = [];
+let _instructorData = null;
 var masterCategory = "";
 let previousCategory = null;
 var tmpinstructor = "";
@@ -243,7 +276,12 @@ async function writeStoryFeed(feed, templateTop) {
     }
 
     try {
-        const url = `${feed.file}/${templateTop.slug}`;
+        let identifier = (type !== "default" && feed.itemId) ? feed.itemId : templateTop.slug;
+        console.log(`writeStoryFeed: Using identifier "${identifier}" for feed "${feed.chkbox}" (type: ${type})`);
+        let url = `${feed.file}/${identifier}`;
+        if (type !== "default" && editSlug === "") {
+            url = `${feed.file}`;
+        }
         const response = await apiFetch(url, {
             method: editSlug !== "" ? "PUT" : "POST",
             headers: {
@@ -263,13 +301,16 @@ async function writeStoryFeed(feed, templateTop) {
 
 
 async function GetSubcategoryList() {
-    // debugger;
+    // Disabled as both S3 and API are currently unreachable (403 Forbidden)
+    /*
     var submeta = await readS3BucketAsync(activePathS3["subcategory"], "");
     if (submeta.err) {
         console.log(submeta.err);
     } else {
         _subcategoryList = JSON.parse(submeta.data);
     }
+    */
+    _subcategoryList = [];
 }
 
 $("body").on("change", "#ddl_ddlcategory", async function () {
@@ -303,7 +344,6 @@ var addStory = (async function () {
 
     ipcRenderer.on("receiveSlug", async (event, arg) => {
 
-        console.log(arg);
         masterCategory = arg.category;
         editSlug = arg.slug;
         RenderFields("story");
@@ -341,10 +381,21 @@ var addStory = (async function () {
 
     let rawdata = fs.readFileSync(path.resolve(__dirname, "Files/templateTop.json"));
     let templateTop = JSON.parse(rawdata);
-    let rawdataConfing = await readS3BucketAsync(activePathS3["config"], "");
-    console.log(rawdataConfing.data);
+    let configJson = null;
+    try {
+        let configEndpoint = activePathS3["config"].replace(".json", "");
+        // Force add-config for default and handle others dynamically
+        if (type === "default") configEndpoint = "add-config";
 
-    let configJson = JSON.parse(rawdataConfing.data);
+        const configUrl = `${API_BASE_URL}/${configEndpoint}`;
+        const configResponse = await apiFetch(configUrl);
+        const configData = await configResponse.json();
+        configJson = (configData.data && Array.isArray(configData.data)) ? configData.data[0] : (configData.data || configData);
+    } catch (e) {
+        console.error("Error loading config via API:", e);
+        let rawdataConfing = await readS3BucketAsync(activePathS3["config"], "");
+        configJson = JSON.parse(rawdataConfing.data);
+    }
     var select2 = require("select2");
 
 
@@ -380,9 +431,9 @@ var addStory = (async function () {
     async function GetCategoryList() {
         // debugger;
         try {
-            const response = await apiFetch(`${CATEGORIES_API_BASE}?limit=100`);
+            const response = await apiFetch(`${CATEGORIES_LIST_API_BASE}?limit=100`);
             const data = await response.json();
-            const JSON_Obj = data.categories;
+            const JSON_Obj = data.data || data.categories || (Array.isArray(data) ? data : []);
 
             var element = [];
             for (var i = 0; i < JSON_Obj.length; i++) {
@@ -438,6 +489,20 @@ var addStory = (async function () {
                 if (typeof _instructorList !== "undefined") _instructorList.push(instructorId);
             }
             $("#divJson #ddl_instructor").html(element.join(" "));
+            if (tmpinstructor) {
+                // Fetch full detail even if in list, as list objects might be partial
+                (async () => {
+                    try {
+                        const searchUrl = `${INSTRUCTORS_API_BASE}/${encodeURIComponent(tmpinstructor)}`;
+                        const searchResponse = await apiFetch(searchUrl);
+                        const searchData = await searchResponse.json();
+                        _instructorData = searchData.instructor || searchData;
+                        console.log("Initial instructor data fetched:", _instructorData);
+                    } catch (e) {
+                        console.error("Error fetching initial instructor details:", e);
+                    }
+                })();
+            }
 
             var $select = $("#divJson #ddl_instructor").selectize({
                 sortField: "text",
@@ -445,6 +510,21 @@ var addStory = (async function () {
                 placeholder: "Type mobile number to search…",
                 searchField: ["text", "value"],
                 loadThrottle: 300,
+                onChange: async function (value) {
+                    if (value && value !== "noinstructor") {
+                        try {
+                            const searchUrl = `${INSTRUCTORS_API_BASE}/${encodeURIComponent(value)}`;
+                            const searchResponse = await apiFetch(searchUrl);
+                            const searchData = await searchResponse.json();
+                            _instructorData = searchData.instructor || searchData;
+                            console.log("Selected instructor data updated:", _instructorData);
+                        } catch (e) {
+                            console.error("Error fetching selected instructor details:", e);
+                        }
+                    } else {
+                        _instructorData = null;
+                    }
+                },
                 load: async function (query, callback) {
                     var digits = String(query || "").replace(/\D/g, "");
                     if (digits.length < 8) {
@@ -537,6 +617,7 @@ var addStory = (async function () {
                     if (!instr && (searchData.user_id || searchData.mobile_no)) instr = searchData;
 
                     if (instr) {
+                        _instructorData = instr;
                         selectize.addOption({
                             value: String(instr.user_id || instr.Id),
                             text: instructorOptionText(instr),
@@ -572,7 +653,7 @@ var addStory = (async function () {
             var selectize = $select[0].selectize;
 
             if (tmplocation && tmplocation !== "NoLocation" && !selectize.options[tmplocation]) {
-               selectize.addOption({ value: tmplocation.toLowerCase(), text: tmplocation });
+                selectize.addOption({ value: tmplocation.toLowerCase(), text: tmplocation });
             }
             selectize.setValue(tmplocation || "NoLocation");
         } catch (error) {
@@ -588,7 +669,9 @@ var addStory = (async function () {
             var element = [];
             element.push('<option value="NoOrganisation">No Organisation</option>');
             for (var i = 0; i < JSON_Obj.length; i++) {
-                element.push('<option value="' + JSON_Obj[i].Organisation.toLowerCase() + '">' + JSON_Obj[i].Organisation + " </option>");
+                var org = JSON_Obj[i];
+                var orgId = org.id || org.Id || org.Organisation.toLowerCase().replace(/ /g, "_");
+                element.push('<option value="' + orgId + '">' + org.Organisation + " </option>");
             }
             $("#divJson #ddl_organisation").html(element.join(" "));
             var $select = $("#divJson #ddl_organisation").selectize({
@@ -599,9 +682,17 @@ var addStory = (async function () {
             var selectize = $select[0].selectize;
 
             if (tmpOrganisation && tmpOrganisation !== "NoOrganisation" && !selectize.options[tmpOrganisation]) {
-                selectize.addOption({ value: tmpOrganisation.toLowerCase(), text: tmpOrganisation });
+                // Try to find if it's a name and we need the ID
+                let foundId = Object.keys(selectize.options).find(key => selectize.options[key].text.toLowerCase() === tmpOrganisation.toLowerCase());
+                if (foundId) {
+                    selectize.setValue(foundId);
+                } else {
+                    selectize.addOption({ value: tmpOrganisation, text: tmpOrganisation });
+                    selectize.setValue(tmpOrganisation);
+                }
+            } else {
+                selectize.setValue(tmpOrganisation || "NoOrganisation");
             }
-            selectize.setValue(tmpOrganisation || "NoOrganisation");
         } catch (error) {
             console.log("Error fetching organisations:", error);
         }
@@ -757,6 +848,7 @@ var addStory = (async function () {
         fullStory = JSON.stringify(fullStory);
         console.log(fullStory);
         GenerateStory["fullStory"] = fullStory;
+        GenerateStory["itemId"] = editItemId;
         GenerateStory["fullStory_hindi"] = GetFullStory($("#divExtraFieldHindi"));
         if ($('#ddl_ddlcategory').attr('multiple') == "multiple") {
             GenerateStory["master_categories"] = $("#divJson #ddl_ddlcategory").val().join(",");
@@ -795,120 +887,123 @@ var addStory = (async function () {
             dialog.showErrorBox("Required field", "Please select location");
             return false;
         }
-        if ($("#divJson #ddl_organisation").val() == null || $("#divJson #ddl_organisation").val() == "" || $("#divJson #ddl_organisation").val() == undefined) {
-            $("body").toggleClass("loaded");
-            dialog.showErrorBox("Required field", "Please select organisation");
-            return false;
-        }
         if ($("#divJson #ddl_instructor").val() == null || $("#divJson #ddl_instructor").val() == "" || $("#divJson #ddl_instructor").val() == undefined) {
             $("body").toggleClass("loaded");
             dialog.showErrorBox("Required field", "Please select Instructor");
             return false;
         }
-        if ($("#divJson #ddl_organisation").find('option:selected').val().toLowerCase().trim() == "vfly") {
-            $("body").toggleClass("loaded");
-            if (confirm("Are you sure want to VFLY as Organisation for this story!")) {
-
-            }
-            else {
+        if (type === "default") {
+            if ($("#divJson #ddl_organisation").val() == null || $("#divJson #ddl_organisation").val() == "" || $("#divJson #ddl_organisation").val() == undefined) {
+                $("body").toggleClass("loaded");
+                dialog.showErrorBox("Required field", "Please select organisation");
                 return false;
+            }
+            if ($("#divJson #ddl_organisation").find('option:selected').val().toLowerCase().trim() == "vfly") {
+                $("body").toggleClass("loaded");
+                if (confirm("Are you sure want to VFLY as Organisation for this story!")) {
+
+                }
+                else {
+                    return false;
+                }
             }
         }
         tmpTopStory = true;
         validaton(GenerateStory, async function (result) {
             if (result.cansave) {
-                const checkResponse = await apiFetch(`${masterStoriesApiUrl}/${GenerateStory.slug}`);
-                if (editSlug !== "" || !checkResponse.ok) {
-                    const response = await apiFetch(editSlug !== "" ? masterStoriesApiUrl + "/" + editSlug : masterStoriesApiUrl, {
-                        method: editSlug !== "" ? "PUT" : "POST",
+                let meta = null;
+                //if (type === "default") {
+                let masterIdentifier = editSlug;
+                if (editSlug !== "" && type !== "default" && editItemId) {
+                    masterIdentifier = editItemId;
+                }
+                const response = await apiFetch(editSlug !== "" ? masterStoriesApiUrl + "/" + masterIdentifier : masterStoriesApiUrl, {
+                    method: editSlug !== "" ? "PUT" : "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(GenerateStory),
+                });
+                meta = await response.json();
+                console.log("API Response:", meta);
+                //}
+
+                let detailIdentifier = editSlug || GenerateStory.slug;
+                const detailMethod = editSlug !== "" ? "PUT" : "POST";
+                if (editSlug !== "" && type !== "default" && editItemId) {
+                    detailIdentifier = editItemId;
+                }
+
+                const detailResponse = await apiFetch(
+                    (type !== "default" || editSlug !== "")
+                        ? `${STORY_DETAIL_API_BASE}/${detailIdentifier}`
+
+                        : `${STORY_DETAIL_API_BASE}`,
+                    {
+                        method: detailMethod,
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify(GenerateStory),
+                    }
+                );
+
+                const metaStoryDetail = await detailResponse.json();
+                console.log("API Response:", metaStoryDetail);
+                const locationVal = $("#divJson #ddl_location").val();
+
+                /*
+                if (locationVal && locationVal !== "NoLocation") {
+                    const addLocationResponse = await apiFetch(`${LOCATIONS_API_BASE}/${locationVal}`, {
+                        method: "POST",
                         headers: {
                             "Content-Type": "application/json",
                         },
                         body: JSON.stringify(GenerateStory),
                     });
-                    const meta = await response.json();
-                    console.log("API Response:", meta);
+                    const locationMeta = await addLocationResponse.json();
+                    console.log("Location Detail API Response:", locationMeta);
+                }
+                */
+                const categoryVal = $("#divJson #ddl_ddlcategory").val();
 
-                    const detailResponse = await apiFetch(
-                        editSlug !== ""
-                            ? `${STORY_DETAIL_API_BASE}/${editSlug}`
-                            : `${STORY_DETAIL_API_BASE}`,
-                        {
-                            method: editSlug !== "" ? "PUT" : "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify(GenerateStory),
+                if (categoryVal) {
+                    const categoriesArr = Array.isArray(categoryVal) ? categoryVal : [categoryVal];
+                    const slug = GenerateStory.slug;
+                    const isUpdate = editSlug !== "";
+
+                    for (const cat of categoriesArr) {
+                        if (!cat) continue;
+
+                        let catIdentifier = slug;
+                        if (isUpdate && type !== "default" && editItemId) {
+                            catIdentifier = editItemId;
                         }
-                    );
 
-                    const metaStoryDetail = await detailResponse.json();
-                    console.log("API Response:", metaStoryDetail);
-                    const locationVal = $("#divJson #ddl_location").val();
+                        const catUrl = isUpdate
+                            ? `${CATEGORIES_API_BASE}/${cat}/${catIdentifier}`
+                            : `${CATEGORIES_API_BASE}/${cat}`;
 
-                    /*
-                    if (locationVal && locationVal !== "NoLocation") {
-                        const addLocationResponse = await apiFetch(`${LOCATIONS_API_BASE}/${locationVal}`, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify(GenerateStory),
-                        });
-                        const locationMeta = await addLocationResponse.json();
-                        console.log("Location Detail API Response:", locationMeta);
-                    }
-                    */
-                    const categoryVal = $("#divJson #ddl_ddlcategory").val();
+                        const method = isUpdate ? "PUT" : "POST";
 
-                    if (categoryVal) {
-                        const categoriesArr = Array.isArray(categoryVal) ? categoryVal : [categoryVal];
-                        const slug = GenerateStory.slug;
-                        const isUpdate = editSlug !== "";
+                        try {
+                            const addCategoryResponse = await apiFetch(catUrl, {
+                                method: method,
+                                headers: {
+                                    "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify(GenerateStory),
+                            });
 
-                        for (const cat of categoriesArr) {
-                            if (!cat) continue;
+                            const categoryMeta = await addCategoryResponse.json();
+                            console.log(`Category Detail API Response for ${cat}:`, categoryMeta);
 
-                            const catUrl = isUpdate
-                                ? `${CATEGORIES_API_BASE}/${cat}/${slug}`
-                                : `${CATEGORIES_API_BASE}/${cat}`;
-
-                            const method = isUpdate ? "PUT" : "POST";
-
-                            try {
-                                const addCategoryResponse = await apiFetch(catUrl, {
-                                    method: method,
-                                    headers: {
-                                        "Content-Type": "application/json",
-                                    },
-                                    body: JSON.stringify(GenerateStory),
-                                });
-
-                                const categoryMeta = await addCategoryResponse.json();
-                                console.log(`Category Detail API Response for ${cat}:`, categoryMeta);
-
-                                if (categoryMeta && categoryMeta.error) {
-                                    dialog.showErrorBox("Category Error", `Failed to save story in category '${cat}': ${categoryMeta.error}`);
-                                }
-                            } catch (catErr) {
-                                console.error(`Error updating category ${cat}:`, catErr);
+                            if (categoryMeta && categoryMeta.error) {
+                                dialog.showErrorBox("Category Error", `Failed to save story in category '${cat}': ${categoryMeta.error}`);
                             }
+                        } catch (catErr) {
+                            console.error(`Error updating category ${cat}:`, catErr);
                         }
-                    }
-
-
-
-
-
-                } else {
-                    console.log("Story slug already exists. Cannot create a duplicate.");
-
-                    const options = { title: "Slug Taken", message: "A story with this slug already exists. Please use a unique slug or edit the existing story.", detail: "", };
-                    try {
-                        dialog.showMessageBox(null, options);
-                    } catch (e) {
-                        console.log(e);
-                        dialog.showMessageBox(null, options);
                     }
                 }
                 for (var key in templateTop) {
@@ -953,12 +1048,11 @@ var addStory = (async function () {
                 // if ($('#chk_storiespriority').is(":checked")) {
                 //     await MakeStoryPriority(templateTop);
                 // }
-                // //Organisation
-                // var _organisations = $("#divJson #ddl_organisation").val();
-                // if (_organisations != "" && _organisations != undefined) {
-                //     // if (_organisations != "" && _organisations!=undefined && _organisations !="NoOrganisation") {
-                //     await saveOnOrganisation(templateTop, _organisations, "organisation");
-                // }
+                //Organisation
+                var _organisations = $("#divJson #ddl_organisation").val();
+                if (_organisations != "" && _organisations != undefined && _organisations != "NoOrganisation") {
+                    await saveOnOrganisation(templateTop, _organisations, "organisation");
+                }
 
                 $("body").toggleClass("loaded");
                 const options = { title: "", message: "Story Saved succssfully", detail: "", };
@@ -1010,7 +1104,12 @@ var addStory = (async function () {
             if (newTags.length > 0) {
                 try {
                     const method = editSlug !== "" ? "PUT" : "POST";
-                    const response = await apiFetch(MASTER_TAG_API_BASE, {
+                    let identifier = "";
+                    if (method === "PUT" && type !== "default" && editItemId) {
+                        identifier = editItemId;
+                    }
+                    const url = method === "PUT" ? `${MASTER_TAG_API_BASE}/${identifier}` : MASTER_TAG_API_BASE;
+                    const response = await apiFetch(url, {
                         method: method,
                         headers: {
                             "Content-Type": "application/json",
@@ -1028,46 +1127,46 @@ var addStory = (async function () {
         }
     }
 
-        /*
-        const IsExistsTagMaster = await existsS3Bucket(`${activePathS3["TagsMaster"]}`);
-        if (IsExistsTagMaster.isExists) {
-            try {
-                var submetaTagMaster = await readS3BucketAsync(`${activePathS3["TagsMaster"]}`, "");
-                if (submetaTagMaster.err) {
-                    console.log(submetaTagMaster.err);
-                } else {
-                    if (submetaTagMaster.data != null && submetaTagMaster.data.length > 3)
-                        tagDataMaster = JSON.parse(submetaTagMaster.data);
-                }
-            } catch (e) {
-                console.log(e);
+    /*
+    const IsExistsTagMaster = await existsS3Bucket(`${activePathS3["TagsMaster"]}`);
+    if (IsExistsTagMaster.isExists) {
+        try {
+            var submetaTagMaster = await readS3BucketAsync(`${activePathS3["TagsMaster"]}`, "");
+            if (submetaTagMaster.err) {
+                console.log(submetaTagMaster.err);
+            } else {
+                if (submetaTagMaster.data != null && submetaTagMaster.data.length > 3)
+                    tagDataMaster = JSON.parse(submetaTagMaster.data);
             }
+        } catch (e) {
+            console.log(e);
         }
+    }
 
-        var isTagMasterExists = 0;
-        // if (tagDataMaster.length > 0) 
-        // {
-        const existingTags = new Set(tagDataMaster.map(entry => entry.tag));
+    var isTagMasterExists = 0;
+    // if (tagDataMaster.length > 0) 
+    // {
+    const existingTags = new Set(tagDataMaster.map(entry => entry.tag));
 
-        const tagsEn = templateTop.tags.split(',').map(t => t.trim());
-        const tagsHi = templateTop.tags_hindi.split(',').map(t => t.trim());
+    const tagsEn = templateTop.tags.split(',').map(t => t.trim());
+    const tagsHi = templateTop.tags_hindi.split(',').map(t => t.trim());
 
-        tagsEn.forEach((tagEn, index) => {
-            const tagSlug = slugify(tagEn);
-            if (!existingTags.has(tagSlug)) {
-                tagDataMaster.push({
-                    tag: tagSlug,
-                    title: tagEn,
-                    tag_hindi: tagsHi[index] || ""
-                });
-                // existingTags.add(tagDataMaster); // prevent future duplicates
-            }
-        });
+    tagsEn.forEach((tagEn, index) => {
+        const tagSlug = slugify(tagEn);
+        if (!existingTags.has(tagSlug)) {
+            tagDataMaster.push({
+                tag: tagSlug,
+                title: tagEn,
+                tag_hindi: tagsHi[index] || ""
+            });
+            // existingTags.add(tagDataMaster); // prevent future duplicates
+        }
+    });
 
-        const arrayContent = Array.from(tagDataMaster);
-        await WriteS3Bucket(arrayContent, `${activePathS3["TagsMaster"]}`, function (tt) { });
-        // }
-        */
+    const arrayContent = Array.from(tagDataMaster);
+    await WriteS3Bucket(arrayContent, `${activePathS3["TagsMaster"]}`, function (tt) { });
+    // }
+    */
 
 
     async function validaton(json, callback) {
@@ -1105,18 +1204,14 @@ var addStory = (async function () {
         }
 
         if (result["cansave"]) {
-            await CheckSlugStory(slug);
+            // await CheckSlugStory(slug); // Removed redundant call during save flow
             if ($(txtboxSlug).attr("disabled") == undefined) {
                 try {
-                    console.log("Checking slug availability via API...");
-                    const checkResponse = await apiFetch(`${masterStoriesApiUrl}/${encodeURIComponent(slug)}`);
+                    console.log("Checking slug availability via story-detail API...");
+                    const checkResponse = await apiFetch(`${STORY_DETAIL_API_BASE}/${encodeURIComponent(slug)}`);
                     const checkData = await checkResponse.json();
 
-                    if (checkData && checkData.slug && $.trim(checkData.slug.toLowerCase()) == $.trim(slug.toLowerCase())) {
-                        result["cansave"] = false;
-                        result["msg"] = "Slug already exists";
-                        $(txtboxSlug).addClass("error");
-                    }
+
                 } catch (e) {
                     console.error("Slug check error:", e);
                 }
@@ -1512,14 +1607,16 @@ var addStory = (async function () {
     // }
 
     function ReadSlug(slug) {
+        console.log("url", STORY_DETAIL_API_BASE + "/" + slug)
         $.ajax({
-            url: masterStoriesApiUrl + "/" + slug,
+            url: STORY_DETAIL_API_BASE + "/" + slug,
             method: "GET",
             success: function (data) {
                 try {
                     // Assuming data is already a parsed JSON object from the API.
                     // If it's a string, uncomment the next line: var JSON_Obj = JSON.parse(data);
                     var JSON_Obj = data;
+                    editItemId = JSON_Obj.itemId || "";
 
                     var ignoreItem = ["fullStory", "fullStory_hindi", "master_categories"];
 
@@ -1805,12 +1902,11 @@ var addStory = (async function () {
 
     async function CheckSlugStory(slug) {
         for (var i = 0; i < storyAlsoOn.length; i++) {
-            console.log("slug start", new Date());
             let fileJson = await readStoryFeed(storyAlsoOn[i]);
             try {
                 var chkbox = $('[name="' + storyAlsoOn[i]["chkbox"] + '"]');
                 var existingCount = parseInt(fileJson.length);
-                var MaxCount = parseInt(configJson[storyAlsoOn[i]["chkbox"]]);
+                var MaxCount = configJson ? parseInt(configJson[storyAlsoOn[i]["chkbox"]]) : 999;
                 if (MaxCount > existingCount) {
                     storyAlsoOn[i]["CanAdd"] = true;
                     $(chkbox).removeAttr("disabled");
@@ -1830,6 +1926,8 @@ var addStory = (async function () {
                             storyAlsoOn[i]["isExist"] = true;
                             storyAlsoOn[i]["index"] = j;
                             storyAlsoOn[i]["total"] = fileJson.length;
+                            storyAlsoOn[i]["itemId"] = fileJson[j].itemId || "";
+                            console.log(`CheckSlugStory: Found existing itemId "${storyAlsoOn[i]["itemId"]}" for feed "${storyAlsoOn[i]["chkbox"]}"`);
                             $('[name="' + storyAlsoOn[i]["chkbox"] + '"]').prop(
                                 "checked",
                                 true
@@ -1840,6 +1938,10 @@ var addStory = (async function () {
                     }
                 }
             } catch (e) { }
+        }
+        if (type == "gyan") {
+            $('[name="storiestop"]').prop("checked", false);
+            $('[name="storiesgyan"]').prop("checked", true);
         }
     }
 
@@ -1895,7 +1997,7 @@ var addStory = (async function () {
                     continue;
                 }
             } else if (url.includes("/locations")) {
-                if (previousLocation && previousLocation !== "NoLocation") {
+                if (type === "default" && previousLocation && previousLocation !== "NoLocation") {
                     url = `${url}/${$.trim(previousLocation).toLowerCase().replace(/ /g, "_")}`;
                 } else {
                     continue;
@@ -2185,18 +2287,25 @@ var addStory = (async function () {
     $("#btndelete").on("click", async function () {
         if (confirm("Are you sure want to delete this story!")) {
             $("body").toggleClass("loaded");
-            const slug = editSlug; 
+            const slug = editSlug;
+            let masterIdentifier = slug;
+            let detailIdentifier = slug;
+
+            if (type !== "default" && editItemId) {
+                masterIdentifier = editItemId;
+                detailIdentifier = editItemId;
+            }
 
             try {
                 // 1. Delete from Master Stories API
-                const deleteResponse = await apiFetch(`${masterStoriesApiUrl}/${slug}`, {
+                const deleteResponse = await apiFetch(`${masterStoriesApiUrl}/${masterIdentifier}`, {
                     method: "DELETE",
                     headers: { "Content-Type": "application/json" }
                 });
                 console.log("Main story delete API response:", await deleteResponse.json());
 
                 // 2. Delete from Story Detail API
-                const deleteDetailResponse = await apiFetch(`${STORY_DETAIL_API_BASE}/${slug}`, {
+                const deleteDetailResponse = await apiFetch(`${STORY_DETAIL_API_BASE}/${detailIdentifier}`, {
                     method: "DELETE",
                     headers: { "Content-Type": "application/json" }
                 });
@@ -2232,7 +2341,9 @@ var addStory = (async function () {
 
                 // 7. Delete from Feeds
                 for (const feed of storyAlsoOn) {
-                    await deleteFromFeed(feed.file, slug);
+                    if ($('[name="' + feed.chkbox + '"]').is(":checked")) {
+                        await deleteFromFeed(feed.file, slug);
+                    }
                 }
 
                 // 8. Delete from Tags
@@ -2243,8 +2354,10 @@ var addStory = (async function () {
 
                 $("body").toggleClass("loaded");
                 alert("Story deleted successfully!");
-                ipcRenderer.send("reload-parent"); 
-                remote.getCurrentWindow().close();
+                if (!prefillStoryTestData) {
+                    ipcRenderer.send("reload-parent");
+                    remote.getCurrentWindow().close();
+                }
 
             } catch (error) {
                 console.error("Error during story deletion:", error);
@@ -2261,13 +2374,17 @@ var addStory = (async function () {
         for (const tag of tagsArr) {
             if (!tag) continue;
             try {
+                let identifier = slug;
+                if (type !== "default" && editItemId) {
+                    identifier = editItemId;
+                }
                 // 1. Delete from tag_detail
-                const tagUrl = `${tagDetailPostUrl(tag)}/${encodeURIComponent(normalizeDetailPathSegment(slug))}`;
+                const tagUrl = `${tagDetailPostUrl(tag)}/${encodeURIComponent(identifier)}`;
                 await apiFetch(tagUrl, { method: "DELETE" });
 
                 // 2. Delete from master_tag
-                const masterUrl = `${MASTER_TAG_API_BASE}/${tag}`;
-                await apiFetch(masterUrl, { method: "DELETE" });
+                //const masterUrl = `${MASTER_TAG_API_BASE}/${tag}`;
+                //await apiFetch(masterUrl, { method: "DELETE" });
 
                 console.log(`Deleted story ${slug} from tag: ${tag} and master list`);
             } catch (e) {
@@ -2279,7 +2396,11 @@ var addStory = (async function () {
     async function deleteFromFeed(feedUrl, slug) {
         if (!feedUrl || !/^https?:\/\//i.test(feedUrl)) return;
         try {
-            const url = `${feedUrl}/${slug}`;
+            let identifier = slug;
+            if (type !== "default" && editItemId) {
+                identifier = editItemId;
+            }
+            const url = `${feedUrl}/${identifier}`;
             const response = await apiFetch(url, {
                 method: "DELETE",
                 headers: { "Content-Type": "application/json" }
@@ -2291,6 +2412,7 @@ var addStory = (async function () {
     }
 
     let deleteFromLocation = async (slug, location) => {
+        if (type !== "default") return;
         const locSlug = normalizeLocationSlug(location);
         const pathSlug = normalizeDetailPathSegment(slug);
         if (!pathSlug) {
@@ -2309,11 +2431,16 @@ var addStory = (async function () {
     };
 
     let deleteFromInstructor = async (slug, instructor) => {
-        const url = `${INSTRUCTORS_API_BASE}/${instructor}/${slug}`;
+        const url = `${INSTRUCTORS_API_BASE}/${instructor}`;
         try {
+            let instructorKey = type === "default" ? "story" : type;
+            const body = {};
+            body[instructorKey] = [];
+
             const response = await apiFetch(url, {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" }
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body)
             });
             console.log("Delete from instructor response:", await response.json());
         } catch (e) {
@@ -2322,8 +2449,11 @@ var addStory = (async function () {
     };
 
     let deleteFromOrganisation = async (slug, organisation) => {
-        organisation = $.trim(organisation.toLowerCase()).replace(/ /g, "_");
-        const url = `${ORGANISATIONS_API_BASE}/${organisation}/${slug}`;
+        let identifier = slug;
+        if (type !== "default" && editItemId) {
+            identifier = editItemId;
+        }
+        const url = organisationDetailPostUrl(organisation, identifier);
         try {
             const response = await apiFetch(url, {
                 method: "DELETE",
@@ -2336,7 +2466,11 @@ var addStory = (async function () {
     };
 
     let deleteFromCategory = async (slug, category) => {
-        const url = `${CATEGORIES_API_BASE}/${category}/${slug}`;
+        let identifier = slug;
+        if (type !== "default" && editItemId) {
+            identifier = editItemId;
+        }
+        const url = `${CATEGORIES_API_BASE}/${category}/${identifier}`;
         try {
             const response = await apiFetch(url, {
                 method: "DELETE",
@@ -2355,81 +2489,72 @@ var addStory = (async function () {
                 continue;
             }
 
-            const fileJson = await readStoryFeed(feed);
-            const existingIndex = fileJson.findIndex(item => item.slug == templateTop.slug);
-
-            if (existingIndex >= 0) {
-                fileJson[existingIndex] = templateTop;
-            } else {
-                fileJson.push(templateTop);
-            }
-
             const meta = await writeStoryFeed(feed, templateTop);
             console.log(feed["label"] + " API Response:", meta);
         }
-
         /*
-        for (var i = 0; i < storyAlsoOn.length; i++) {
-            var trand = storyAlsoOn[i];
-            if ($('[name="' + trand["chkbox"] + '"]').is(":checked") || trand["manual"]) {
-                var topJson = [];
-                const IsFileExists = await existsS3Bucket(trand["file"], i);
-                if (IsFileExists.isExists) {
-                    var _index = parseInt(IsFileExists.data);
-                    const trandJsonResult = await readS3BucketAsync(storyAlsoOn[_index].file, "");
-                    if (trandJsonResult.err) {
+                for (var i = 0; i < storyAlsoOn.length; i++) {
+                    var trand = storyAlsoOn[i];
+                    if ($('[name="' + trand["chkbox"] + '"]').is(":checked") || trand["manual"]) {
+                        var topJson = [];
+                        const IsFileExists = await existsS3Bucket(trand["file"], i);
+                        if (IsFileExists.isExists) {
+                            var _index = parseInt(IsFileExists.data);
+                            const trandJsonResult = await readS3BucketAsync(storyAlsoOn[_index].file, "");
+                            if (trandJsonResult.err) {
+                            } else {
+                                topJson = JSON.parse(trandJsonResult.data);
+                                if (!$.isArray(topJson)) {
+                                    topJson = [topJson];
+                                }
+                            }
+                        }
+        
+                        if (topJson.length == 0) {
+                            topJson = [templateTop];
+                        } else {
+                            var isExists = topJson.filter(function (itm) {
+                                return itm.slug == templateTop.slug;
+                            });
+                            if (isExists.length == 0) {
+                                topJson.push(templateTop);
+                            }
+                        }
+                        await WriteS3Bucket(topJson, storyAlsoOn[_index]["file"]);
+                        //if (storyAlsoOn[_index]["manual"]) {
+                        //    for (var j = 0; j < topJson.length; j++) {
+                        //        if (topJson[j].slug == templateTop.slug) {
+                        //            storyAlsoOn = storyAlsoOn.filter(function (i) { return i.chkbox != $('#ddl_ddlcategory').val(); })
+                        //            storyAlsoOn.push({ "chkbox": $('#ddl_ddlcategory').val(), "file": mainCategory, "isExist": true, "index": j, "manual": true });
+                        //        }
+                        //    }
+                        //}
                     } else {
-                        topJson = JSON.parse(trandJsonResult.data);
-                        if (!$.isArray(topJson)) {
-                            topJson = [topJson];
+                        if (trand["isExist"]) {
+                            const trandJsonResult = await readS3BucketAsync(trand["file"], "");
+                            if (trandJsonResult.err) {
+                            } else {
+                                topJson = JSON.parse(trandJsonResult.data);
+                                topJson = topJson.filter(function (itm) {
+                                    return itm.slug != slug;
+                                });
+                                //await WriteS3Bucket(topJson, json["file"]);
+                                await WriteS3Bucket(topJson, trand["file"]);
+                                storyAlsoOn = storyAlsoOn.filter(function (i) {
+                                    return i.chkbox != $("#ddl_ddlcategory").val();
+                                });
+                                // storyAlsoOn.push({
+                                //     chkbox: $("#ddl_ddlcategory").val(),
+                                //     file: mainCategory,
+                                //     isExist: true,
+                                //     index: 0,
+                                //     manual: true,
+                                // });
+                            }
                         }
                     }
                 }
-
-                if (topJson.length == 0) {
-                    topJson = [templateTop];
-                } else {
-                    var isExists = topJson.filter(function (itm) {
-                        return itm.slug == templateTop.slug;
-                    });
-                    if (isExists.length == 0) {
-                        topJson.push(templateTop);
-                    }
-                }
-                await WriteS3Bucket(topJson, storyAlsoOn[_index]["file"]);
-                //if (storyAlsoOn[_index]["manual"]) {
-                //    for (var j = 0; j < topJson.length; j++) {
-                //        if (topJson[j].slug == templateTop.slug) {
-                //            storyAlsoOn = storyAlsoOn.filter(function (i) { return i.chkbox != $('#ddl_ddlcategory').val(); })
-                //            storyAlsoOn.push({ "chkbox": $('#ddl_ddlcategory').val(), "file": mainCategory, "isExist": true, "index": j, "manual": true });
-                //        }
-                //    }
-                //}
-            } else {
-                if (trand["isExist"]) {
-                    const trandJsonResult = await readS3BucketAsync(trand["file"], "");
-                    if (trandJsonResult.err) {
-                    } else {
-                        topJson = JSON.parse(trandJsonResult.data);
-                        topJson = topJson.filter(function (itm) {
-                            return itm.slug != slug;
-                        });
-                        //await WriteS3Bucket(topJson, json["file"]);
-                        await WriteS3Bucket(topJson, trand["file"]);
-                        storyAlsoOn = storyAlsoOn.filter(function (i) {
-                            return i.chkbox != $("#ddl_ddlcategory").val();
-                        });
-                        // storyAlsoOn.push({
-                        //     chkbox: $("#ddl_ddlcategory").val(),
-                        //     file: mainCategory,
-                        //     isExist: true,
-                        //     index: 0,
-                        //     manual: true,
-                        // });
-                    }
-                }
-            }
-        */
+            */
     }
     const WriteInMasterIndex = async (templateTop) => {
         var categoryList = [];
@@ -2501,16 +2626,39 @@ var addStory = (async function () {
 
     let saveOninstructor = async (templateTop) => {
         let _instructor = $('#ddl_instructor').val();
+        console.log("Saving story to instructor:", _instructor, "Type:", type);
         if (_instructor != "noinstructor" && _instructor != null && _instructor != "") {
             try {
+                let instructorKey = type === "default" ? "story" : type;
+                const body = {};
+                console.log("Current _instructorData:", _instructorData);
+                if (type !== "default" && _instructorData) {
+                    if (!Array.isArray(_instructorData[instructorKey])) {
+                        _instructorData[instructorKey] = [];
+                        console.log(`Initialized empty array for key: ${instructorKey}`);
+                    }
+                    let index = _instructorData[instructorKey].findIndex(item => item.slug === templateTop.slug);
+                    if (index !== -1) {
+                        _instructorData[instructorKey][index] = templateTop;
+                        console.log(`Updated existing story in ${instructorKey} at index ${index}`);
+                    } else {
+                        _instructorData[instructorKey].push(templateTop);
+                        console.log(`Appended new story to ${instructorKey}. New length: ${_instructorData[instructorKey].length}`);
+                    }
+                    body[instructorKey] = _instructorData[instructorKey];
+                } else {
+                    body[instructorKey] = [templateTop];
+                    console.log(`Default/No data path: Setting ${instructorKey} to single-item array`);
+                }
+                //console.log("instructor_data", _instructorData);
+                console.log("Final request body for instructor update:", JSON.stringify(body));
+
                 const response = await apiFetch(`${INSTRUCTORS_API_BASE}/${_instructor}`, {
-                    method: "PUT" ,
+                    method: "PUT",
                     headers: {
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify({
-                        "story": [templateTop]
-                    }),
+                    body: JSON.stringify(body),
                 });
                 const meta = await response.json();
                 console.log("Instructor Story API Response:", meta);
@@ -2602,41 +2750,48 @@ var addStory = (async function () {
 
     let saveOnOrganisation = async (templateTop, filename, path) => {
         if (filename != "NoOrganisation" && filename != null && filename != "") {
-            const organisationUrl = `${ORGANISATIONS_API_BASE}/${filename}?organisation=${filename}`;
-            const organisationBody = { ...templateTop, Organisation: filename };
+            const orgSlug = filename.toLowerCase().replace(/ /g, "_");
+            const normalizePrevious = (previousOrganisation || "").toLowerCase().trim().replace(/ /g, "_");
+
+            // Handle organisation change: delete from old if it's different
+            if (normalizePrevious != "" && normalizePrevious != "noorganisation" && normalizePrevious != orgSlug) {
+                try {
+                    await deleteFromOrganisation(templateTop.slug, normalizePrevious);
+                } catch (e) {
+                    console.error("Error removing from previous organisation via API:", e);
+                }
+            }
 
             try {
-                const organisationResponse = await apiFetch(organisationUrl, {
-                    method: editSlug !== "" ? "PUT" : "POST",
+                const method = editSlug !== "" ? "PUT" : "POST";
+                let identifier = templateTop.slug;
+                if (method === "PUT" && type !== "default" && editItemId) {
+                    identifier = editItemId;
+                }
+                const detailUrl = method === "POST" ? organisationDetailPostUrl(orgSlug) : organisationDetailPostUrl(orgSlug, identifier);
+
+                // Prefix slug with organisation ID as required by the API
+                const organisationBody = {
+                    ...templateTop,
+                    id: orgSlug,
+                    slug: templateTop.slug
+                };
+
+                const response = await apiFetch(detailUrl, {
+                    method: method,
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(organisationBody)
                 });
-                console.log("Save on organisation response:", organisationResponse.status);
-            } catch (e) {
-                console.error("Error writing organisation detail via API:", e);
-            }
-        }
 
-        if (previousOrganisation != "" && previousOrganisation != undefined && previousOrganisation.toLowerCase() != (filename || "").toLowerCase()) {
-            const oldOrganisationUrl = `${ORGANISATIONS_API_BASE}/${$.trim(previousOrganisation).toLowerCase().replace(/ /g, "_")}`;
-            try {
-                const preResponse = await apiFetch(oldOrganisationUrl);
-                const preResult = await preResponse.json();
-                let oldOrganisationData = preResult.organisations || preResult.data || preResult || [];
-
-                if (Array.isArray(oldOrganisationData)) {
-                    const filteredData = oldOrganisationData.filter(itm => itm.slug != templateTop.slug);
-                    if (filteredData.length != oldOrganisationData.length) {
-                        await apiFetch(oldOrganisationUrl, {
-                            method: editSlug !== "" ? "PUT" : "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(filteredData)
-                        });
-                        console.log("Organisation removed from previous file via API");
-                    }
+                if (!response.ok) {
+                    await logApiError(response, `organisation detail ${method}`);
+                } else {
+                    const meta = await response.json();
+                    console.log(`Organisation Detail API Response (${method}):`, meta);
+                    previousOrganisation = filename;
                 }
             } catch (e) {
-                console.error("Error removing from previous organisation via API:", e);
+                console.error("Error writing organisation detail via API:", e);
             }
         }
     }
@@ -2646,12 +2801,20 @@ var addStory = (async function () {
 
         if (path == "tags") {
             try {
-                const pathSlug = normalizeDetailPathSegment(templateTop.slug);
-                const detailUrl = tagDetailPostUrl(filename, pathSlug);
+                let identifier = templateTop.slug;
+                if (editSlug !== "" && type !== "default" && editItemId) {
+                    identifier = editItemId;
+                }
+                const pathSlug = (type !== "default" && identifier) ? identifier : normalizeDetailPathSegment(templateTop.slug);
+                let detailUrl = tagDetailPostUrl(filename, pathSlug);
+                const method = editSlug !== "" ? "PUT" : "POST";
+                if (method === "PUT") {
+                    detailUrl = `${detailUrl}/${encodeURIComponent(pathSlug)}`;
+                }
                 const postBody = buildTagStoryPostBody(templateTop, filename);
 
                 const response = await apiFetch(detailUrl, {
-                    method: editSlug !== "" ? "PUT" : "POST",
+                    method: method,
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(postBody)
                 });
@@ -2662,7 +2825,7 @@ var addStory = (async function () {
             }
         }
 
-        if (path == "location") {
+        if (path == "location" && type === "default") {
             filename = $.trim(filename.toLowerCase()).replace(/ /g, "_");
             const normalizePrevious = (previousLocation || "").toLowerCase().trim().replace(/ /g, "_");
 

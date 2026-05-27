@@ -1,7 +1,7 @@
 var remote = require('@electron/remote');
 let serverPaths = {
     "story-detail": "story-detail/",
-    "category-index": "category-index/",
+    "category-index": "categories/",
     category: "categories",
     MasterIndex: "MasterIndex.json",
     "blog-home": "stories-blog-home",
@@ -21,18 +21,19 @@ let serverPaths = {
     "tags": "tags",
     TagsMaster: "tags_master.json",
     "location": "locations",
-    "organisation": "organisations"
+    "organisation": "organisations",
+    "stories": "stories"
 };
 let serverPaths_audio = {
     "story-detail": "audio-story-detail/",
-    "category-index": "audio-category-index/",
+    "category-index": "audio-category-detail/",
     category: "audio-category",
     MasterIndex: "audio-MasterIndex.json",
     "blog-home": "add-audio-blog-home",
     "mobile-home": "add-audio-mobile-home",
-    "stories-top": "audio-stories-top.json",
+    "stories-top": "add-audio-stories-top",
     trending: "add-audio-trending",
-    config: "audio-config.json",
+    config: "add-audio-config",
     instructor: "instructor.js",
     instructorPath: "instructor/",
     productPath: "product/",
@@ -45,18 +46,19 @@ let serverPaths_audio = {
     "tags": "tags-audio",
     TagsMaster: "tags_master.json",
     "location": "locations-audio",
-    "organisation": "organisations-audio"
+    "organisation": "organisations-audio",
+    "stories": "add-audio-masterindex"
 };
 let serverPaths_gyan = {
     "story-detail": "gyan-story-detail/",
-    "category-index": "gyan-category-index/",
-    category: "gyan-category.json",
+    "category-index": "gyan-category-detail/",
+    category: "add-gyan-category",
     MasterIndex: "gyan-MasterIndex.json",
     "blog-home": "add-gyan-blog-home",
     "mobile-home": "add-gyan-mobile-home",
     "stories-top": "add-gyan-stories-top",
     trending: "add-gyan-trending",
-    config: "gyan-config.json",
+    config: "add-gyan-config",
     instructor: "instructor.js",
     instructorPath: "instructor/",
     productPath: "product/",
@@ -69,7 +71,8 @@ let serverPaths_gyan = {
     "tags": "tags-gyan",
     TagsMaster: "tags_master.json",
     "location": "locations-gyan",
-    "organisation": "organisations-gyan"
+    "organisation": "organisations-gyan",
+    "stories": "add-gyan-masterindex"
 };
 let serverPaths_promotion = {
     "story-detail": "promotion-story-detail/",
@@ -80,7 +83,7 @@ let serverPaths_promotion = {
     "mobile-home": "promotion-mobile-home.json",
     "stories-top": "promotion-stories-top.json",
     trending: "promotion-trending.json",
-    config: "promotion-config.json",
+    config: "add-promotion-config",
     instructor: "instructor.js",
     instructorPath: "instructor/",
     productPath: "product/",
@@ -93,18 +96,19 @@ let serverPaths_promotion = {
     "tags": "tags-promotion",
     TagsMaster: "tags_master.json",
     "location": "locations-promotion",
-    "organisation": "organisations-promotion"
+    "organisation": "organisations-promotion",
+    "stories": "promotion-stories"
 };
 let serverPaths_hope = {
     "story-detail": "hope-story-detail/",
-    "category-index": "hope-category-index/",
-    category: "hope-category.json",
+    "category-index": "hope-category-detail/",
+    category: "add-hope-category",
     MasterIndex: "hope-MasterIndex.json",
     "blog-home": "add-hope-blog-home",
     "mobile-home": "add-hope-mobile-home",
     "stories-top": "add-hope-stories-top",
     trending: "add-hope-trending",
-    config: "hope-config.json",
+    config: "add-hope-config",
     instructor: "instructor.js",
     instructorPath: "instructor/",
     productPath: "product/",
@@ -117,19 +121,20 @@ let serverPaths_hope = {
     "tags": "tags-hope",
     TagsMaster: "tags_master.json",
     "location": "locations-hope",
-    "organisation": "organisations-hope"
+    "organisation": "organisations-hope",
+    "stories": "add-hope-masterindex"
 };
 let serverPaths_namaste = {
-    "story-detail": "namaste-story-detail/",
-    "category-index": "namaste-category-index/",
-    category: "namaste-category.json",
+    "story-detail": "greeting-story-detail/",
+    "category-index": "greeting-category-detail/",
+    category: "add-namaste-category",
     MasterIndex: "namaste-MasterIndex.json",
     "blog-home": "add-namaste-blog-home",
     "mobile-home": "add-namaste-mobile-home",
     "stories-top": "add-namaste-stories-top",
     trending: "add-namaste-trending",
-    config: "namaste-config.json",
-    instructor: "instructor.js",
+    config: "add-namaste-config",
+    instructor: "instructor.js",    
     instructorPath: "instructor/",
     productPath: "product/",
     subcategory: "sub-namaste-category.json",
@@ -141,7 +146,8 @@ let serverPaths_namaste = {
     "tags": "tags-namaste",
     TagsMaster: "tags_master.json",
     "location": "locations-namaste",
-    "organisation": "organisations-namaste"
+    "organisation": "organisations-namaste",
+    "stories": "add-namaste-masterindex"
 };
 let serverPaths_product = {
     "story-detail": "",

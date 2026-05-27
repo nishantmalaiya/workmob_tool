@@ -6,7 +6,7 @@ var session = require("electron").remote.session;
 var app = require("electron").remote.app;
 var ipcRenderer = require("electron").ipcRenderer;
 const dialog = remote.dialog;
-let common = require("../js/config");
+let common = require("../Js/config");
 
 const topProduct_Json='topownerproducts.json';
 let activePathS3 = common.getS3Path();

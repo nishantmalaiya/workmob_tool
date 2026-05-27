@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 const buffer = require('buffer').Buffer;
 // let pathName = path.join(__dirname, 'Files');
@@ -9,7 +9,7 @@ var remote = require('@electron/remote');
 var ipcRenderer = require('electron').ipcRenderer;
 // const { ipcMain } = require('electron');
 const dialog = remote.dialog;
-let common = require('./js/config');
+let common = require('./Js/config');
 let activePathS3 = common.getS3Path();
 let currentOffset = 0; // Track the current offset
 const limit = 10; // Number of records to fetch per request
@@ -28,12 +28,10 @@ async function locationMasterList() {
   currentOffset = 0;
   allRecords = [];
   $('.single').html('');
-  console.log('type' + type)
-  if (type == 'default' || type == 'audio' || type == 'gyan') {
-    GetCategoryList(currentOffset, limit);
-  } else if (type == 'hope' || type == 'namaste' || type == 'promotion') {
-    GetFromS3CategoryList();
-  }
+  console.log('type' + type);
+
+  // All story types (default, audio, gyan, hope, namaste, promotion) now fetch categories via API
+  GetCategoryList(currentOffset, limit);
 }
 
 function GetCategoryList(offset, limit) {
@@ -46,12 +44,8 @@ function GetCategoryList(offset, limit) {
     dropdown.append('<div class="dropdown-loader"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid" width="30" height="30" style="shape-rendering: auto; display: block; background: rgb(255, 255, 255);margin: 0 auto;" xmlns:xlink="http://www.w3.org/1999/xlink"><g><circle stroke-dasharray="164.93361431346415 56.97787143782138" r="35" stroke-width="10" stroke="#337ab7" fill="none" cy="50" cx="50"><animateTransform keyTimes="0;1" values="0 50 50;360 50 50" dur="1s" repeatCount="indefinite" type="rotate" attributeName="transform"></animateTransform></circle><g></g></g></svg></div>');
   }
 
-  let apiName = activePathS3.category;
-  if (type === 'gyan') {
-    apiName = `add-${apiName}`;
-  }
-  const baseCategoryUrl = `${common.API_BASE_URL}/${apiName}`;
-  const url = baseCategoryUrl;
+  let apiName = (activePathS3.category || "categories").replace(".json", "");
+  const url = `${common.API_BASE_URL}/${apiName}`;
 
   fetch(url)
     .then(response => response.json())
@@ -59,9 +53,9 @@ function GetCategoryList(offset, limit) {
       hasMore = data.hasMore;
       lastKey = data.lastKey;
 
-     // var JSON_ObjCategory = data.categories;
+      // var JSON_ObjCategory = data.categories;
 
-      const JSON_ObjCategory = (type === 'audio' || type === 'gyan' ? data.data : data.categories) || [];
+      const JSON_ObjCategory = data.data || data.categories || [];
 
       if (!selectizeInstance) {
         // First load: Build HTML, initialize Selectize
@@ -284,8 +278,12 @@ function fetchAndRenderRecords(categoryValue, offset, limit) {
   // use response.text() and then JSON.parse, similar to the original readS3Bucket approach.
   // Also, added error handling for JSON parsing.
 
-  const apiName = activePathS3.category.replace('.json', '');
-  fetch(`${common.API_BASE_URL}/categories/${categoryValue}`)
+  // Derive the API endpoint from the S3 path configuration (e.g., "category/" becomes "categories")
+  let endpoint = (activePathS3["category-index"] || "category/").replace(/\//g, "");
+  //if (!endpoint.endsWith('s')) endpoint += 's';
+
+  const url = `${common.API_BASE_URL}/${endpoint}/${categoryValue}`;
+  fetch(url)
     .then(response => {
       if (!response.ok) {
         throw new Error('Network response was not ok');
@@ -315,8 +313,8 @@ function fetchAndRenderRecords(categoryValue, offset, limit) {
           JSON_Obj = [];
         }
 
-        const recordsToAppend = (JSON_Obj && typeof JSON_Obj.slice === 'function') 
-          ? JSON_Obj.slice(offset, offset + limit) 
+        const recordsToAppend = (JSON_Obj && typeof JSON_Obj.slice === 'function')
+          ? JSON_Obj.slice(offset, offset + limit)
           : [];
 
         // Append and render records if available
@@ -465,7 +463,11 @@ async function ApplyFilter() {
     }
     try {
       $('body').removeClass('loaded');
-      const response = await fetch(`${common.API_BASE_URL}/stories?name=${name}`);
+      // const storiesEndpoint = (activePathS3.stories || "stories").replace(".json", "");
+
+      const storiesEndpoint = `${((type === "default" ? (activePathS3.stories || "stories") : (activePathS3["story-detail"] || "stories"))).replace(/\//g, "").replace(".json", "")}`;
+
+      const response = await fetch(`${common.API_BASE_URL}/${storiesEndpoint}?name=${name}`);
       const checkData = await response.json();
       $('body').addClass('loaded');
 
@@ -482,18 +484,18 @@ async function ApplyFilter() {
       console.log("Error checking story:", e);
       dialog.showErrorBox('Error', "An error occurred while fetching the story.");
     }
-        // story = story.filter(function (i) {
-        //   return i.name.toLowerCase().indexOf($('#txtName').val().toLowerCase()) != -1;
-        // });
-      }
- else if ($('#txtSlug').val() == "") {
+    // story = story.filter(function (i) {
+    //   return i.name.toLowerCase().indexOf($('#txtName').val().toLowerCase()) != -1;
+    // });
+  }
+  else if ($('#txtSlug').val() == "") {
     if (JSON_Obj) {
       if ($('#ddlCity').val() != "") {
         story = JSON_Obj.filter(function (i) {
           return i.location == $('#ddlCity').val();
         });
       }
-      
+
       $('#divStory').html(RenderStory(story).join(" "));
     }
   }
@@ -503,7 +505,8 @@ async function ApplyFilter() {
     const slug = $('#txtSlug').val();
     try {
       $('body').removeClass('loaded');
-      const response = await fetch(`${common.API_BASE_URL}/stories/${slug}`);
+      const storiesEndpoint = (activePathS3["story-detail"] || "stories").replace(/\//g, "").replace(".json", "");
+      const response = await fetch(`${common.API_BASE_URL}/${storiesEndpoint}/${slug}`);
       const checkData = await response.json();
       $('body').addClass('loaded');
 

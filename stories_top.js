@@ -5,7 +5,7 @@ var remote = require('@electron/remote');
 var session = remote.session;
 var app = remote.app;
 var ipcRenderer = require('electron').ipcRenderer;
-let common = require('./js/config');
+let common = require('./Js/config');
 let activePathS3 = common.getS3Path();
 
 var GlobalJSONObj = null;

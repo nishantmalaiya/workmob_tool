@@ -6,7 +6,7 @@ var session = require("electron").remote.session;
 var app = require("electron").remote.app;
 var ipcRenderer = require("electron").ipcRenderer;
 const dialog = remote.dialog;
-let common = require("../js/config");
+let common = require("../Js/config");
 let activePathS3 = common.getS3Path();
 var type = remote.getGlobal("sharedObj").currentStory;
 

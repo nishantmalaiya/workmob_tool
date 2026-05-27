@@ -175,15 +175,19 @@
     <script type="text/javascript" src="../Dragdrop.js"></script>
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1.24.min.js"></script>
     <script type="text/javascript" src="../Js/BucketConfigurations.js"></script>
-    <script type="text/javascript" src="../js/firebaseconfing.js"></script>
-    <script type="text/javascript" src="../js/Instructor.js"></script>
+    <script type="text/javascript" src="../Js/firebaseconfing.js"></script>
+    <script type="text/javascript" src="../Js/Instructor.js"></script>
     <script>
         function phonenumber() {
             var tel = document.getElementById("txtMobileNo").value;
             //var pattern = /^[0-9]{3}[0-9]{3}[0-9]{4}$/;
             var pattern = /^(\d{10}|\d{12})$/;
             if (!pattern.test(tel)) {
-                alert("Please enter valid mobile number : " + tel);
+                if (typeof showModalError === 'function') {
+                    showModalError("Please enter valid mobile number : " + tel);
+                } else {
+                    alert("Please enter valid mobile number : " + tel);
+                }
                 return false;
             }
         }

@@ -2,11 +2,28 @@ var remote = require('@electron/remote');
 const ipcRenderer = require('electron').ipcRenderer;
 var pathName = remote.getGlobal('sharedObj').pathName;
 const dialog = remote.dialog;
-let common = require('../js/config');
+var type = remote.getGlobal('sharedObj').currentStory;
+let common = require('../Js/config');
 let activePathS3 = common.getS3Path();
 var JSON_Obj = null;
 let configJson = null;
 let MasterJson = null;
+
+const defaultApiHeaders = {
+    "Content-Type": "application/json",
+    "Accept": "*/*"
+};
+
+function apiFetch(url, options = {}) {
+    return fetch(url, {
+        ...options,
+        cache: "no-store",
+        headers: {
+            ...defaultApiHeaders,
+            ...(options.headers || {})
+        }
+    });
+}
 
 var storyAlsoOn = [];
 storyAlsoOn.push({ "chkbox": "storiestop", "file": activePathS3["stories-top"], "isExist": false, "index": "-1", "total": "0", "label": "Stories Top", "CanAdd": false });
@@ -25,7 +42,8 @@ $(async () => {
         const data = await response.json();
         configJson = (data.data && Array.isArray(data.data)) ? data.data[0] : (data.data || data);
 
-        const masterUrl = `${common.API_BASE_URL}/stories?limit=50`;
+        const storiesEndpoint = (activePathS3.stories || "stories").replace(".json", "");
+        const masterUrl = `${common.API_BASE_URL}/${storiesEndpoint}?limit=50`;
         const masterResponse = await fetch(masterUrl);
         const masterData = await masterResponse.json();
         MasterJson = masterData.stories || masterData.data || masterData || [];
@@ -36,7 +54,8 @@ $(async () => {
 });
 
 function GetCategoryList() {
-    const url = `${common.API_BASE_URL}/categories`;
+    const categoryEndpoint = (activePathS3.category || "categories").replace(".json", "");
+    const url = `${common.API_BASE_URL}/${categoryEndpoint}`;
     fetch(url)
         .then(response => response.json())
         .then(data => {
@@ -65,8 +84,9 @@ $('#ddlCategory').on('change', function () {
     const category = $.trim($(this).val());
     if (category != "") {
         $('body').toggleClass('loaded');
-        const url = `${common.API_BASE_URL}/categories/${encodeURIComponent(category)}`;
-        
+        const categoryEndpoint = (activePathS3["category-index"] || activePathS3["category"] || "categories").replace(/\//g, "").replace(".json", "");
+        const url = `${common.API_BASE_URL}/${categoryEndpoint}/${encodeURIComponent(category)}`;
+
         fetch(url)
             .then(response => response.json())
             .then(data => {
@@ -112,12 +132,13 @@ async function ApplyFilter() {
     }
     else {
         $('body').toggleClass('loaded');
-        const url = `${common.API_BASE_URL}/stories/${encodeURIComponent(slug)}`;
-        
+        const storiesEndpoint = (activePathS3.stories || "stories").replace(".json", "");
+        const url = `${common.API_BASE_URL}/${storiesEndpoint}/${encodeURIComponent(slug)}`;
+
         try {
             const response = await fetch(url);
             const data = await response.json();
-            
+
             if (response.ok) {
                 const storyData = data.stories || data.data || data;
                 const storyArr = Array.isArray(storyData) ? storyData : [storyData];
@@ -173,33 +194,67 @@ $('body').on('click', '[name="updateHeading"]', async function () {
     var newStoryHeading = $.trim($(this).closest('tr').find('[name="storyHeading"]').val());
 
     try {
-        // 1. Fetch current story state via API
-        const getUrl = `${common.API_BASE_URL}/stories/${encodeURIComponent(updateSlug)}`;
-        const getResponse = await fetch(getUrl);
+        // 1. Fetch current story state via Detail API
+        // 1. Fetch current story state via Detail API (Using GET as in addStory.js ReadSlug)
+        const detailEndpoint = (activePathS3["story-detail"] || "stories").replace(/\//g, "").replace(".json", "");
+        const getUrl = `${common.API_BASE_URL}/${detailEndpoint}/${encodeURIComponent(updateSlug)}`;
+        const getResponse = await apiFetch(getUrl);
         if (!getResponse.ok) throw new Error("Failed to fetch story details");
-        
+
         const respData = await getResponse.json();
         let storyJson = respData.stories || respData.data || respData;
         if (Array.isArray(storyJson)) storyJson = storyJson[0];
-
         // 2. Update heading if changed
         if (newStoryHeading != storyJson.storyHeading) {
             storyJson.storyHeading = newStoryHeading;
-            
-            // 3. Save via PUT API
-            const putUrl = `${common.API_BASE_URL}/stories/${encodeURIComponent(updateSlug)}`;
-            const putResponse = await fetch(putUrl, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
+
+            // 3. Save to Master Detail via API
+            const putUrl = `${common.API_BASE_URL}/${detailEndpoint}/${encodeURIComponent(updateSlug)}`;
+            const method = type !== "default" ? "POST" : "PUT";
+            const putResponse = await apiFetch(putUrl, {
+                method: method,
                 body: JSON.stringify(storyJson)
             });
 
             if (!putResponse.ok) {
                 const errorData = await putResponse.json();
-                throw new Error(errorData.msg || "Failed to update story heading");
+                throw new Error(errorData.msg || "Failed to update story heading in master");
             }
-            
-            console.log("Story heading updated successfully via API");
+
+            console.log("Story heading updated successfully in master detail");
+
+            // 4. Update in Category Index if a category is selected
+            const selectedCategory = $.trim($('#ddlCategory').val());
+            if (selectedCategory !== "") {
+                const categoryEndpoint = (activePathS3["category-index"] || activePathS3["category"] || "categories").replace(/\//g, "").replace(".json", "");
+                const catUrl = `${common.API_BASE_URL}/${categoryEndpoint}/${encodeURIComponent(selectedCategory)}/${encodeURIComponent(updateSlug)}`;
+
+                await apiFetch(catUrl, {
+                    method: method,
+                    body: JSON.stringify(storyJson)
+                }).then(r => {
+                    if (r.ok) console.log(`Updated in category index: ${selectedCategory}`);
+                }).catch(e => console.warn("Category update failed", e));
+            }
+
+            // 5. Update in Master Listing Index (e.g. stories / add-audio-masterindex)
+            const masterListingEndpoint = (activePathS3.stories || "stories").replace(".json", "");
+            const masterListingUrl = `${common.API_BASE_URL}/${masterListingEndpoint}/${encodeURIComponent(updateSlug)}`;
+            await apiFetch(masterListingUrl, {
+                method: method,
+                body: JSON.stringify(storyJson)
+            }).then(r => {
+                if (r.ok) console.log("Updated in master listing index");
+            }).catch(e => console.warn("Master listing update failed", e));
+
+
+            // 7. Update local state to keep UI in sync
+            [MasterJson, JSON_Obj].forEach(list => {
+                if (list && Array.isArray(list)) {
+                    let localMatch = list.find(s => s.slug === updateSlug);
+                    if (localMatch) localMatch.storyHeading = newStoryHeading;
+                }
+            });
         }
 
         // 4. Update UI

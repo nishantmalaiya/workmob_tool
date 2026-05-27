@@ -5,7 +5,7 @@ var remote = require('@electron/remote');
 var session = remote.session;
 var app = remote.app;
 var ipcRenderer = require('electron').ipcRenderer;
-let common = require('./js/config');
+let common = require('./Js/config');
 let activePathS3 = common.getS3Path();
 GetCategoriesList();
 var GlobalJSONObj = null;
@@ -43,15 +43,14 @@ let hasMoreRecords = true;
 
 
 function GetCategoriesList() {
-    //debugger;
-    const url = `${common.API_BASE_URL}/categories`;
+    const url = `${common.API_BASE_URL}/${activePathS3.category}`;
 
     fetch(url)
         .then(response => response.json())
         .then(data => {
             var element = [];
             element.push("<option value=\"\">select</option>");
-            var JSON_ObjCategory = data.categories;
+            const JSON_ObjCategory = data.data || data.categories || (Array.isArray(data) ? data : []);
             for (let index = 0; index < JSON_ObjCategory.length; index++) {
                 var _category = JSON_ObjCategory[index];
                 element.push("<option value=\"" + _category.category + "\">" + _category.title + "</option>");
@@ -77,10 +76,10 @@ $('#ddlCategory').on('change', function () {
         JSON_FileSlug = activePathS3["category-index"] + $(this).val() + ".json";
         JSON_FileName = $("#" + this.id + " option:selected").text();
 
+        // Map index folder (e.g. "category/") to endpoint (e.g. "categories")
+        let detailSegment = (activePathS3["category-index"] || activePathS3["category"] || "categories").replace(/\//g, "").replace(".json", "");
 
-
-
-        let url = `${common.API_BASE_URL}/categories/${$(this).val()}`;
+        let url = `${common.API_BASE_URL}/${detailSegment}/${$(this).val()}`;
         if (typeof lastEvaluatedKey !== 'undefined' && lastEvaluatedKey) {
             url += "?lastEvaluatedKey=" + encodeURIComponent(JSON.stringify(lastEvaluatedKey));
         }
@@ -92,7 +91,7 @@ $('#ddlCategory').on('change', function () {
                 $('body').toggleClass('loaded');
 
                 // Append and render records if available
-                let fetchedStories = json.stories || json.data || [];
+                let fetchedStories = json.stories || json.data || (Array.isArray(json) ? json : []);
                 if (fetchedStories.length > 0) {
                     GlobalJSONObj = fetchedStories; // Assign directly, do not parse
                     $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
@@ -179,7 +178,10 @@ async function deleteStory(slug) {
         if (!category) return;
 
         $('body').toggleClass('loaded');
-        const url = `${common.API_BASE_URL}/categories/${encodeURIComponent(category)}/${encodeURIComponent(slug)}`;
+        
+        let detailSegment = (activePathS3["category-index"] || activePathS3["category"] || "categories").replace(/\//g, "").replace(".json", "");
+        
+        const url = `${common.API_BASE_URL}/${detailSegment}/${encodeURIComponent(category)}/${encodeURIComponent(slug)}`;
 
         try {
             const response = await fetch(url, {

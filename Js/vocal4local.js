@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 var remote = require('@electron/remote');
 const dialog = remote.dialog;
-let common = require('../js/config');
+let common = require('../Js/config');
 let activePathS3 = common.getS3Path();
 
 let currentOffset = 0; // Tracks the current offset

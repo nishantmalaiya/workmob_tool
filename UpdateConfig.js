@@ -6,11 +6,14 @@ var app = require('electron');
 var remote = require('@electron/remote');
 const dialog = remote.dialog;
 var configJson = [];
-let common = require('./js/config');
+let common = require('./Js/config');
 let activePathS3 = common.getS3Path();
 
 //if (fs.existsSync(path.join(__dirname, 'Files/config.json'))) {
-fetch(common.API_BASE_URL + "/add-config")
+let configEndpoint = activePathS3["config"] || "add-config";
+if (!configEndpoint.startsWith("/")) configEndpoint = "/" + configEndpoint;
+
+fetch(common.API_BASE_URL + configEndpoint)
     .then(response => response.json())
     .then(data => {
         // API returns { data: [ { ... } ], count: 1, ... }
@@ -52,7 +55,7 @@ $('#btnUpdateJson').on('click', async function () {
     config_json["storiesnamaste"] = $('#txtstoriesNamaste').val();
     config_json["storiespromotion"] = $('#txtstoriesPromotion').val();
     $('body').toggleClass('loaded');
-    const response = await fetch(common.API_BASE_URL + "/add-config", {
+    const response = await fetch(common.API_BASE_URL + configEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config_json)

@@ -15,7 +15,7 @@ const {
 } = require("electron");
 const remoteMain = require('@electron/remote/main');
 remoteMain.initialize();
-//let common = require('./js/config');
+//let common = require('./Js/config');
 //const remoteMain = require('@electron/remote/main');
 //remoteMain.initialize();
 const url = require("url");
@@ -236,7 +236,7 @@ app.on("ready", function () {
         {
             label: "PROMOTION",
             click: function () {
-                ShowPage("pages/Promotion.html");
+                ShowPage("pages/promotion.html");
             },
         },
         {
@@ -293,7 +293,7 @@ app.on("ready", function () {
                 {
                     label: "ORGANISATION",
                     click: function () {
-                        ShowPage("pages/Organisation.html");
+                        ShowPage("pages/organisation.html");
                     }
                 },
             ]
@@ -386,7 +386,7 @@ app.on("ready", function () {
                 {
                     label: "Home",
                     click: function () {
-                        ShowPage("Index.html");
+                        ShowPage("index.html");
                     },
                 },
                 {

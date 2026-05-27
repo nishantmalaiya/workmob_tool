@@ -6,7 +6,7 @@ var session = remote.session;
 var app = remote.app;
 var ipcRenderer = require('electron').ipcRenderer;
 const dialog = remote.dialog;
-let common = require('./js/config');
+let common = require('./Js/config');
 let activePathS3 = common.getS3Path();
 let sub_categoryList = [];
 categorymasterList();
@@ -64,14 +64,17 @@ categorymasterList();
 
 async function categorymasterList() {
     $('body').toggleClass('loaded');
-    var meta = await readS3BucketAsync(activePathS3["category"], "");
-
-    $('body').toggleClass('loaded');
-    if (meta.err) {
-        $('#divStory').html('');
-        return console.log(meta.err);
+    let category = [];
+    try {
+        const response = await fetch(`${common.API_BASE_URL}/${activePathS3.category}`);
+        const data = await response.json();
+        category = data.data || data.categories || (Array.isArray(data) ? data : []);
+    } catch (e) {
+        console.error("Error loading categories via API:", e);
+        var meta = await readS3BucketAsync(activePathS3["category"], "");
+        category = JSON.parse(meta.data);
     }
-    var category = JSON.parse(meta.data);
+
     let strCategory = [];
     strCategory.push(`<option value="">--Select--</optio>`);
     $(category).each(function () {
