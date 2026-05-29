@@ -276,7 +276,7 @@ async function writeStoryFeed(feed, templateTop) {
     }
 
     try {
-        let identifier = (type !== "default" && feed.itemId) ? feed.itemId : templateTop.slug;
+        let identifier = templateTop.slug;
         console.log(`writeStoryFeed: Using identifier "${identifier}" for feed "${feed.chkbox}" (type: ${type})`);
         let url = `${feed.file}/${identifier}`;
         if (type !== "default" && editSlug === "") {
@@ -831,7 +831,14 @@ var addStory = (async function () {
         $(this).attr("contenteditable", false);
     });
 
+    let _storySaved = false;
+
     $("#btnSave").on("click", async function () {
+        if (_storySaved) {
+            dialog.showErrorBox("Already saved", "This story has already been saved. Close and reopen to add a new story.");
+            return;
+        }
+        $("#btnSave").prop("disabled", true);
         $("body").toggleClass("loaded");
         var GenerateStory = {};
         var GenerateStory = {};
@@ -879,22 +886,26 @@ var addStory = (async function () {
         GenerateStory["priority"] = $("#chk_storiespriority").is(":checked") ? 1 : 0;
         if ($("#divJson #ddl_ddlcategory").val() == null) {
             $("body").toggleClass("loaded");
+            $("#btnSave").prop("disabled", false);
             dialog.showErrorBox("required field", "Please select master category");
             return false;
         }
         if ($("#divJson #ddl_location").val() == null || $("#divJson #ddl_location").val() == "" || $("#divJson #ddl_location").val() == undefined) {
             $("body").toggleClass("loaded");
+            $("#btnSave").prop("disabled", false);
             dialog.showErrorBox("Required field", "Please select location");
             return false;
         }
         if ($("#divJson #ddl_instructor").val() == null || $("#divJson #ddl_instructor").val() == "" || $("#divJson #ddl_instructor").val() == undefined) {
             $("body").toggleClass("loaded");
+            $("#btnSave").prop("disabled", false);
             dialog.showErrorBox("Required field", "Please select Instructor");
             return false;
         }
         if (type === "default") {
             if ($("#divJson #ddl_organisation").val() == null || $("#divJson #ddl_organisation").val() == "" || $("#divJson #ddl_organisation").val() == undefined) {
                 $("body").toggleClass("loaded");
+                $("#btnSave").prop("disabled", false);
                 dialog.showErrorBox("Required field", "Please select organisation");
                 return false;
             }
@@ -904,6 +915,7 @@ var addStory = (async function () {
 
                 }
                 else {
+                    $("#btnSave").prop("disabled", false);
                     return false;
                 }
             }
@@ -914,9 +926,6 @@ var addStory = (async function () {
                 let meta = null;
                 //if (type === "default") {
                 let masterIdentifier = editSlug;
-                if (editSlug !== "" && type !== "default" && editItemId) {
-                    masterIdentifier = editItemId;
-                }
                 const response = await apiFetch(editSlug !== "" ? masterStoriesApiUrl + "/" + masterIdentifier : masterStoriesApiUrl, {
                     method: editSlug !== "" ? "PUT" : "POST",
                     headers: {
@@ -928,11 +937,8 @@ var addStory = (async function () {
                 console.log("API Response:", meta);
                 //}
 
-                let detailIdentifier = editSlug || GenerateStory.slug;
+                const detailIdentifier = editSlug || GenerateStory.slug;
                 const detailMethod = editSlug !== "" ? "PUT" : "POST";
-                if (editSlug !== "" && type !== "default" && editItemId) {
-                    detailIdentifier = editItemId;
-                }
 
                 const detailResponse = await apiFetch(
                     (type !== "default" || editSlug !== "")
@@ -975,13 +981,8 @@ var addStory = (async function () {
                     for (const cat of categoriesArr) {
                         if (!cat) continue;
 
-                        let catIdentifier = slug;
-                        if (isUpdate && type !== "default" && editItemId) {
-                            catIdentifier = editItemId;
-                        }
-
                         const catUrl = isUpdate
-                            ? `${CATEGORIES_API_BASE}/${cat}/${catIdentifier}`
+                            ? `${CATEGORIES_API_BASE}/${cat}/${slug}`
                             : `${CATEGORIES_API_BASE}/${cat}`;
 
                         const method = isUpdate ? "PUT" : "POST";
@@ -1054,6 +1055,7 @@ var addStory = (async function () {
                     await saveOnOrganisation(templateTop, _organisations, "organisation");
                 }
 
+                _storySaved = true;
                 $("body").toggleClass("loaded");
                 const options = { title: "", message: "Story Saved succssfully", detail: "", };
                 try {
@@ -1064,6 +1066,7 @@ var addStory = (async function () {
                 }
             } else {
                 $("body").toggleClass("loaded");
+                $("#btnSave").prop("disabled", false);
                 try {
                     dialog.showErrorBox("required field", result.msg);
                 } catch (e) {
@@ -1104,11 +1107,7 @@ var addStory = (async function () {
             if (newTags.length > 0) {
                 try {
                     const method = editSlug !== "" ? "PUT" : "POST";
-                    let identifier = "";
-                    if (method === "PUT" && type !== "default" && editItemId) {
-                        identifier = editItemId;
-                    }
-                    const url = method === "PUT" ? `${MASTER_TAG_API_BASE}/${identifier}` : MASTER_TAG_API_BASE;
+                    const url = method === "PUT" ? `${MASTER_TAG_API_BASE}/${editSlug}` : MASTER_TAG_API_BASE;
                     const response = await apiFetch(url, {
                         method: method,
                         headers: {
@@ -2284,28 +2283,29 @@ var addStory = (async function () {
         ipcRenderer.send("closeChild");
     });
 
+    let _deleteInProgress = false;
+
     $("#btndelete").on("click", async function () {
+        if (_deleteInProgress) {
+            dialog.showErrorBox("Already deleted", "This story has already been deleted.");
+            return;
+        }
         if (confirm("Are you sure want to delete this story!")) {
+            _deleteInProgress = true;
+            $("#btnSave").hide();
             $("body").toggleClass("loaded");
             const slug = editSlug;
-            let masterIdentifier = slug;
-            let detailIdentifier = slug;
-
-            if (type !== "default" && editItemId) {
-                masterIdentifier = editItemId;
-                detailIdentifier = editItemId;
-            }
 
             try {
                 // 1. Delete from Master Stories API
-                const deleteResponse = await apiFetch(`${masterStoriesApiUrl}/${masterIdentifier}`, {
+                const deleteResponse = await apiFetch(`${masterStoriesApiUrl}/${slug}`, {
                     method: "DELETE",
                     headers: { "Content-Type": "application/json" }
                 });
                 console.log("Main story delete API response:", await deleteResponse.json());
 
                 // 2. Delete from Story Detail API
-                const deleteDetailResponse = await apiFetch(`${STORY_DETAIL_API_BASE}/${detailIdentifier}`, {
+                const deleteDetailResponse = await apiFetch(`${STORY_DETAIL_API_BASE}/${slug}`, {
                     method: "DELETE",
                     headers: { "Content-Type": "application/json" }
                 });
@@ -2361,6 +2361,8 @@ var addStory = (async function () {
 
             } catch (error) {
                 console.error("Error during story deletion:", error);
+                _deleteInProgress = false;
+                $("#btnSave").show();
                 $("body").toggleClass("loaded");
                 alert("Failed to delete story.");
             }
@@ -2374,12 +2376,8 @@ var addStory = (async function () {
         for (const tag of tagsArr) {
             if (!tag) continue;
             try {
-                let identifier = slug;
-                if (type !== "default" && editItemId) {
-                    identifier = editItemId;
-                }
                 // 1. Delete from tag_detail
-                const tagUrl = `${tagDetailPostUrl(tag)}/${encodeURIComponent(identifier)}`;
+                const tagUrl = `${tagDetailPostUrl(tag)}/${encodeURIComponent(slug)}`;
                 await apiFetch(tagUrl, { method: "DELETE" });
 
                 // 2. Delete from master_tag
@@ -2396,11 +2394,7 @@ var addStory = (async function () {
     async function deleteFromFeed(feedUrl, slug) {
         if (!feedUrl || !/^https?:\/\//i.test(feedUrl)) return;
         try {
-            let identifier = slug;
-            if (type !== "default" && editItemId) {
-                identifier = editItemId;
-            }
-            const url = `${feedUrl}/${identifier}`;
+            const url = `${feedUrl}/${slug}`;
             const response = await apiFetch(url, {
                 method: "DELETE",
                 headers: { "Content-Type": "application/json" }
@@ -2449,11 +2443,7 @@ var addStory = (async function () {
     };
 
     let deleteFromOrganisation = async (slug, organisation) => {
-        let identifier = slug;
-        if (type !== "default" && editItemId) {
-            identifier = editItemId;
-        }
-        const url = organisationDetailPostUrl(organisation, identifier);
+        const url = organisationDetailPostUrl(organisation, slug);
         try {
             const response = await apiFetch(url, {
                 method: "DELETE",
@@ -2466,11 +2456,7 @@ var addStory = (async function () {
     };
 
     let deleteFromCategory = async (slug, category) => {
-        let identifier = slug;
-        if (type !== "default" && editItemId) {
-            identifier = editItemId;
-        }
-        const url = `${CATEGORIES_API_BASE}/${category}/${identifier}`;
+        const url = `${CATEGORIES_API_BASE}/${category}/${slug}`;
         try {
             const response = await apiFetch(url, {
                 method: "DELETE",
@@ -2764,11 +2750,7 @@ var addStory = (async function () {
 
             try {
                 const method = editSlug !== "" ? "PUT" : "POST";
-                let identifier = templateTop.slug;
-                if (method === "PUT" && type !== "default" && editItemId) {
-                    identifier = editItemId;
-                }
-                const detailUrl = method === "POST" ? organisationDetailPostUrl(orgSlug) : organisationDetailPostUrl(orgSlug, identifier);
+                const detailUrl = method === "POST" ? organisationDetailPostUrl(orgSlug) : organisationDetailPostUrl(orgSlug, templateTop.slug);
 
                 // Prefix slug with organisation ID as required by the API
                 const organisationBody = {
@@ -2801,11 +2783,7 @@ var addStory = (async function () {
 
         if (path == "tags") {
             try {
-                let identifier = templateTop.slug;
-                if (editSlug !== "" && type !== "default" && editItemId) {
-                    identifier = editItemId;
-                }
-                const pathSlug = (type !== "default" && identifier) ? identifier : normalizeDetailPathSegment(templateTop.slug);
+                const pathSlug = (type !== "default" && templateTop.slug) ? templateTop.slug : normalizeDetailPathSegment(templateTop.slug);
                 let detailUrl = tagDetailPostUrl(filename, pathSlug);
                 const method = editSlug !== "" ? "PUT" : "POST";
                 if (method === "PUT") {

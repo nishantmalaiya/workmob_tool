@@ -505,12 +505,21 @@ async function ApplyFilter() {
     const slug = $('#txtSlug').val();
     try {
       $('body').removeClass('loaded');
-      const storiesEndpoint = (activePathS3["story-detail"] || "stories").replace(/\//g, "").replace(".json", "");
+      const storiesEndpoint = `${((type === "default" ? (activePathS3.stories || "stories") : (activePathS3["story-detail"] || "stories"))).replace(/\//g, "").replace(".json", "")}`;
       const response = await fetch(`${common.API_BASE_URL}/${storiesEndpoint}/${slug}`);
+      if (!response.ok) {
+        $('body').addClass('loaded');
+        if (response.status === 404) {
+          dialog.showErrorBox('Slug not exists', "Please enter valid slug");
+        } else {
+          dialog.showErrorBox('Error', `Server returned ${response.status}`);
+        }
+        return;
+      }
       const checkData = await response.json();
       $('body').addClass('loaded');
 
-      if (checkData.error === "Story not found") {
+      if (!checkData || (checkData.error === "Story not found")) {
         dialog.showErrorBox('Slug not exists', "Please enter valid slug");
         return;
       }
@@ -521,7 +530,7 @@ async function ApplyFilter() {
     } catch (e) {
       $('body').addClass('loaded');
       console.log("Error checking story:", e);
-      dialog.showErrorBox('Error', "An error occurred while fetching the story.");
+      dialog.showErrorBox('Error', "An error occurred while fetching the slug.");
     }
   }
 }
