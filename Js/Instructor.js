@@ -204,7 +204,7 @@ async function RenderInstructor(instructor) {
             <div class=\"col-md-1\"><h5>${this.location}</h5></div>
             <div class=\"col-md-1\"><h5>${this.mobile_no}</h5></div>
            <div class=\"col-md-1\"><h5>${this.user_guid}</h5></div>
-            <div class=\"col-md-1\"><a href=\"#\" data-toggle=\"modal\" data-target=\"#delete-file-modal\" onclick=\"editInstructor('${userId}','${this.mobile_no}')\">Edit</a></div>
+            <div class=\"col-md-1\"><a href=\"#\" data-toggle=\"modal\" data-target=\"#divModel\" onclick=\"editInstructor('${userId}','${this.mobile_no}')\">Edit</a></div>
             <div class=\"col-md-1\"><a href=\"#\" onclick=\"deleteInstructor('${userId}',this)\">Delete</a></div>
             </div>`);
         } else {
@@ -248,23 +248,18 @@ async function deleteInstructor(user_id, _self) {
             }
             console.log("API Delete successful");
 
-            // Remove from Firebase
             await firebase.database().ref("WMUserInfo/" + user_id).remove();
             console.log("Firebase Record removed");
 
-            // UI removal
             $(_self).closest(".instructorList").remove();
-            
-            // Remove from local cache
             allRecords = allRecords.filter(item => (item.user_id || item.id || item.Id) != user_id);
-            
-            showPremiumNotification("Success", "Instructor Deleted successfully", "success");
         } catch (error) {
             console.error("Delete Error:", error);
-            showPremiumNotification("Error", "Error deleting instructor: " + error.message, "error");
         } finally {
             $("body").addClass("loaded");
         }
+        dialog.showMessageBoxSync({ type: 'info', buttons: ['OK'], message: 'Instructor deleted successfully' });
+        window.location.reload();
     } else {
         return false;
     }

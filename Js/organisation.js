@@ -83,7 +83,7 @@ async function deleteOrganisation(id) {
             const response = await fetch(url, { method: "DELETE" });
             if (response.ok) {
                 alert("Organisation deleted successfully");
-                organisationMasterList();
+                window.location.reload();
             } else {
                 const data = await response.json();
                 alert("Error deleting: " + (data.error || data.msg || "Unknown error"));
@@ -135,9 +135,14 @@ $("#btnSave").click(function () {
     });
 });
 $("#btnAddOrganisation").click(function () {
-    $('#organisationModal #txtOrganisation');
+    $('#organisationModal #txtOrganisation').val('');
     $("#hdnOrganisationId").val('');
     $('#organisationModal').find('.modal-title').text("Add New Organisation");
+    setTimeout(function () {
+        window.focus();
+        var el = document.getElementById("txtOrganisation");
+        if (el) { el.focus(); el.focus(); el.select(); }
+    }, 100);
 });
 
 $("#btnClose").click(function () {
@@ -149,6 +154,11 @@ function editOrganisation(Organisation, id) {
     $('#organisationModal').find('.modal-title').text("Edit Organisation");
     $('#organisationModal').find('#txtOrganisation').val(Organisation);
     $('#organisationModal').find('#hdnOrganisationId').val(id);
+    setTimeout(function () {
+        window.focus();
+        var el = document.getElementById("txtOrganisation");
+        if (el) { el.focus(); el.focus(); el.select(); }
+    }, 100);
 }
 function validation(cb) {
     var cansave = true;

@@ -1,6 +1,6 @@
 {
-  "name": "WorkmobJson",
-  "version": "5.1.8",
+  "name": "WorkmobJsonTesting",
+  "version": "5.2.0",
   "description": "Manage JSON",
   "main": "main.js",
   "scripts": {
@@ -38,7 +38,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "guid": "e2b8a2c1-5d6a-4f7b-9c8d-3e1f2a4b5c6d"
     },
     "files": [
       "**/*",

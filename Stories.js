@@ -14,10 +14,15 @@ let activePathS3 = common.getS3Path();
 let currentOffset = 0; // Track the current offset
 const limit = 10; // Number of records to fetch per request
 let allRecords = []; // Store fetched records
-let isFetching = false; // Prevent concurrent fetches
+let isFetchingCategories = false; // Prevent concurrent category fetches
+let isFetchingStories = false; // Prevent concurrent story fetches
 let hasMore = false;
 let lastKey = '';
 var JSON_Obj = null;
+let searchName = '';
+let searchHasMore = false;
+let searchLastKey = '';
+let searchAllRecords = [];
 let selectizeInstance = null;
 var type = remote.getGlobal("sharedObj").currentStory;
 
@@ -36,7 +41,7 @@ async function locationMasterList() {
 
 function GetCategoryList(offset, limit) {
 
-  isFetching = true;
+  isFetchingCategories = true;
 
   // For scroll loads: Show loader inside the open dropdown
   const dropdown = $('.selectize-dropdown');
@@ -52,8 +57,6 @@ function GetCategoryList(offset, limit) {
     .then(data => {
       hasMore = data.hasMore;
       lastKey = data.lastKey;
-
-      // var JSON_ObjCategory = data.categories;
 
       const JSON_ObjCategory = data.data || data.categories || [];
 
@@ -84,7 +87,7 @@ function GetCategoryList(offset, limit) {
               if (scrollTimeout) clearTimeout(scrollTimeout);
               scrollTimeout = setTimeout(() => {
                 if (dropdown.scrollTop() + dropdown.height() >= dropdown[0].scrollHeight - 10) {
-                  if (!isFetching && hasMore) {
+                  if (!isFetchingCategories && hasMore) {
                     console.log('Fetching more categories...');
                     GetCategoryList(currentOffset, limit);
                   }
@@ -111,7 +114,7 @@ function GetCategoryList(offset, limit) {
     }).finally(() => {
       // Hide loader after fetch (success or error)
       $('.dropdown-loader').remove();
-      isFetching = false;
+      isFetchingCategories = false;
     });
 }
 
@@ -243,6 +246,8 @@ $('#ddlCategory').on('change', function () {
 
   const selectedCategory = $.trim($(this).val());
   if (selectedCategory !== "") {
+    searchName = '';
+    searchAllRecords = [];
     $('body').toggleClass('loaded');
     try {
       currentOffset = 0; // Reset offset
@@ -262,13 +267,13 @@ $('#ddlCategory').on('change', function () {
 
 // Function to fetch and render records
 function fetchAndRenderRecords(categoryValue, offset, limit) {
-  if (isFetching) {
+  if (isFetchingStories) {
     if ($('body').hasClass("loaded")) {
       $('body').toggleClass('loaded');
     };
     return
   }; // Prevent overlapping requests
-  isFetching = true;
+  isFetchingStories = true;
 
   // Assuming you have an API endpoint like '/api/getCategoryData' that accepts a 'category' query parameter
   // and returns a JSON response in the format: { data: <parsed JSON object>, err: <error message or null> }
@@ -293,7 +298,7 @@ function fetchAndRenderRecords(categoryValue, offset, limit) {
     .then(jsonString => {
       try {
         const data = JSON.parse(jsonString);
-        isFetching = false; // Reset fetching status
+        isFetchingStories = false;
         $('body').toggleClass('loaded');
 
         // Assuming no 'err' field in this API response; if present, handle accordingly
@@ -332,7 +337,7 @@ function fetchAndRenderRecords(categoryValue, offset, limit) {
       }
     })
     .catch(err => {
-      isFetching = false;
+      isFetchingStories = false;
       $('body').toggleClass('loaded');
       $('#ddlCity').html('');
       $('#divStory').html('');
@@ -404,6 +409,30 @@ function renderData(newRecords, fullData, updateCity) {
   $('#divStory').append(RenderStory(newRecords).join(" "));
 }
 
+function fetchMoreNameSearch() {
+  if (isFetchingStories || !searchHasMore || !searchLastKey) return;
+  isFetchingStories = true;
+
+  const storiesEndpoint = `${((type === "default" ? (activePathS3.stories || "stories") : (activePathS3["story-detail"] || "stories"))).replace(/\//g, "").replace(".json", "")}`;
+  const url = `${common.API_BASE_URL}/${storiesEndpoint}?name=${encodeURIComponent(searchName)}&lastKey=${encodeURIComponent(searchLastKey)}`;
+
+  fetch(url)
+    .then(response => response.json())
+    .then(result => {
+      const stories = result.data && Array.isArray(result.data) ? result.data : (Array.isArray(result) ? result : []);
+      if (stories.length > 0) {
+        searchAllRecords = [...searchAllRecords, ...stories];
+        searchHasMore = !!result.hasMore;
+        searchLastKey = result.lastKey || '';
+        $('#divStory').append(RenderStory(stories).join(" "));
+      } else {
+        searchHasMore = false;
+      }
+    })
+    .catch(err => console.log(err))
+    .finally(() => { isFetchingStories = false; });
+}
+
 // Scroll event to load more records
 let scrollTimeout; // For debouncing
 
@@ -412,9 +441,13 @@ $(window).on('scroll', function () {
 
   scrollTimeout = setTimeout(function () {
     if ($(window).scrollTop() + $(window).height() >= $(document).height() - 10) {
-      if (!isFetching) {
-        const categoryValue = $('#ddlCategory').val(); // Get selected category
-        fetchAndRenderRecords(categoryValue, currentOffset, limit); // Fetch more records
+      if (!isFetchingStories) {
+        if (searchName) {
+          fetchMoreNameSearch();
+        } else {
+          const categoryValue = $('#ddlCategory').val();
+          fetchAndRenderRecords(categoryValue, currentOffset, limit);
+        }
         console.log('Fetching more records...');
       }
     }
@@ -463,48 +496,59 @@ async function ApplyFilter() {
     }
     try {
       $('body').removeClass('loaded');
-      // const storiesEndpoint = (activePathS3.stories || "stories").replace(".json", "");
+      $('#divStory').html('');
+
+      searchName = name;
+      searchAllRecords = [];
+      searchHasMore = false;
+      searchLastKey = '';
 
       const storiesEndpoint = `${((type === "default" ? (activePathS3.stories || "stories") : (activePathS3["story-detail"] || "stories"))).replace(/\//g, "").replace(".json", "")}`;
 
       const response = await fetch(`${common.API_BASE_URL}/${storiesEndpoint}?name=${name}`);
-      const checkData = await response.json();
+      const result = await response.json();
       $('body').addClass('loaded');
 
-      if (checkData.error === "Story not found") {
+      if (result.error === "Story not found") {
+        searchName = '';
         dialog.showErrorBox('Name not exists', "Please enter valid name");
         return;
       }
-      else {
-        story = Array.isArray(checkData) ? checkData : [checkData];
-        $('#divStory').html(RenderStory(story).join(" "));
+
+      const stories = result.data && Array.isArray(result.data) ? result.data : (Array.isArray(result) ? result : []);
+      if (stories.length > 0) {
+        searchAllRecords = stories;
+        searchHasMore = !!result.hasMore;
+        searchLastKey = result.lastKey || '';
+        $('#divStory').html(RenderStory(stories).join(" "));
       }
     } catch (e) {
       $('body').addClass('loaded');
       console.log("Error checking story:", e);
       dialog.showErrorBox('Error', "An error occurred while fetching the story.");
     }
-    // story = story.filter(function (i) {
-    //   return i.name.toLowerCase().indexOf($('#txtName').val().toLowerCase()) != -1;
-    // });
   }
   else if ($('#txtSlug').val() == "") {
-    if (JSON_Obj) {
+    searchName = '';
+    if (JSON_Obj && Array.isArray(JSON_Obj)) {
       if ($('#ddlCity').val() != "") {
         story = JSON_Obj.filter(function (i) {
           return i.location == $('#ddlCity').val();
         });
+      } else {
+        story = JSON_Obj;
       }
-
       $('#divStory').html(RenderStory(story).join(" "));
+    } else {
+      $('#divStory').html('');
     }
   }
-
-
   else {
     const slug = $('#txtSlug').val();
     try {
       $('body').removeClass('loaded');
+      $('#divStory').html('');
+
       const storiesEndpoint = `${((type === "default" ? (activePathS3.stories || "stories") : (activePathS3["story-detail"] || "stories"))).replace(/\//g, "").replace(".json", "")}`;
       const response = await fetch(`${common.API_BASE_URL}/${storiesEndpoint}/${slug}`);
       if (!response.ok) {
@@ -524,8 +568,8 @@ async function ApplyFilter() {
         return;
       }
       else {
-        story = Array.isArray(checkData) ? checkData : [checkData];
-        $('#divStory').html(RenderStory(story).join(" "));
+        const stories = checkData.data && Array.isArray(checkData.data) ? checkData.data : (Array.isArray(checkData) ? checkData : [checkData]);
+        $('#divStory').html(RenderStory(stories).join(" "));
       }
     } catch (e) {
       $('body').addClass('loaded');

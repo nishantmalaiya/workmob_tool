@@ -145,11 +145,11 @@ async function deleteLocation(id) {
             const url = `${LOCATIONS_API_BASE}/${encodeURIComponent(id)}`;
             const response = await fetch(url, { method: "DELETE" });
             if (response.ok) {
-                alert("Location deleted successfully");
+                dialog.showMessageBoxSync({ type: 'info', buttons: ['OK'], message: 'Location deleted successfully' });
                 locationMasterList();
             } else {
                 const data = await response.json();
-                alert("Error deleting: " + (data.msg || "Unknown error"));
+                dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Error deleting: ' + (data.msg || 'Unknown error') });
             }
         } catch (e) {
             console.error("Delete error:", e);
@@ -186,23 +186,34 @@ $("#btnSave").click(function () {
                 } else {
                     const data = await response.json();
                     const errMsg = data.error || data.msg || "Unknown error";
-                    alert("Error saving: " + errMsg);
+                    dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Error saving: ' + errMsg });
+                    focusLocationInput();
                 }
             } catch (e) {
                 console.error("Save error:", e);
-                alert("Failed to save location");
+                dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Failed to save location' });
+                focusLocationInput();
             } finally {
                 $('body').addClass('loaded');
             }
         } else {
-            alert(cansave.msg);
+            dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: cansave.msg });
+            focusLocationInput();
         }
     });
 });
+function focusLocationInput() {
+    setTimeout(function() {
+        var el = document.getElementById('txtLocation');
+        if (el) { el.focus(); el.focus(); }
+    }, 100);
+}
+
 $("#btnAddLocation").click(function () {
     $('#locationModal #txtLocation');
     $("#hdnLocationId").val('');
     $('#locationModal').find('.modal-title').text("Add New Location");
+    focusLocationInput();
 });
 
 $("#btnClose").click(function () {
@@ -214,6 +225,7 @@ function editLocation(location, id) {
     $('#locationModal').find('.modal-title').text("Edit Location");
     $('#locationModal').find('#txtLocation').val(location);
     $('#locationModal').find('#hdnLocationId').val(id);
+    focusLocationInput();
 }
 function validation(cb) {
     var cansave = true;
