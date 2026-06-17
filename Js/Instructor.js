@@ -713,7 +713,8 @@ async function SearchOnInstructor() {
                 console.log("Search error:", err);
                 // Fallback to local filter if API fails
                 story = allRecords.filter(function (i) {
-                    return (i.mobile_no !== undefined && i.mobile_no.toString().includes(instructorno)) || (i.name !== undefined && i.name.toString().includes(instructorno));
+                    const q = instructorno.toLowerCase();
+                    return (i.mobile_no !== undefined && i.mobile_no.toString().includes(instructorno)) || (i.name !== undefined && i.name.toLowerCase().includes(q));
                 });
             } finally {
                 $("body").addClass("loaded");
@@ -721,7 +722,8 @@ async function SearchOnInstructor() {
         } else {
             // Local filter for name or partial mobile number from already loaded records
             story = allRecords.filter(function (i) {
-                return (i.mobile_no !== undefined && i.mobile_no.toString().includes(instructorno)) || (i.name !== undefined && i.name.toString().includes(instructorno));
+                const q = instructorno.toLowerCase();
+                return (i.mobile_no !== undefined && i.mobile_no.toString().includes(instructorno)) || (i.name !== undefined && i.name.toLowerCase().includes(q));
             });
         }
     } else {

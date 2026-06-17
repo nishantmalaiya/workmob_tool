@@ -97,7 +97,6 @@ app.on("ready", function () {
     session.defaultSession.clearStorageData();
 
     childLogin = new BrowserWindow({
-        parent: win,
         width: 400,
         height: 350,
         frame: false,
