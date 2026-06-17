@@ -366,19 +366,26 @@ function ApplyFilter() {
         $('#divStory').html(RenderStory(story).join(" "));
     }
     else {
-        readS3Bucket(activePathS3["story-detail"] + $('#txtSlug').val() + ".json", function (json) {
-            if (json.err) {
+        let slug = $('#txtSlug').val();
+        let type = remote.getGlobal("sharedObj").currentStory;
+        let endpoint = type === "default" ? "stories" : activePathS3["story-detail"].replace(/\/$/, "");
+        let url = `${common.API_BASE_URL}/${endpoint}/${slug}`;
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error("Not found");
+                return response.json();
+            })
+            .then(data => {
+                configJson = data;
+                story = [configJson];
+                $('#divStory').html(RenderStory(story).join(" "));
+            })
+            .catch(err => {
                 $('#ddlCity').html('');
                 $('#divStory').html('');
                 dialog.showErrorBox('Slug not exists', "Please enter valid slug");
-                return console.log(json.err);
-            }
-            else {
-                configJson = JSON.parse(json.data);
-                story = [configJson];
-                $('#divStory').html(RenderStory(story).join(" "));
-            }
-        });
+                console.log(err);
+            });
     }
 }
 $('#btnAddStory').on('click', function () {

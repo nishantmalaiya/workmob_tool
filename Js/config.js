@@ -27,7 +27,7 @@ let serverPaths = {
 let serverPaths_audio = {
     "story-detail": "audio-story-detail/",
     "category-index": "audio-category-detail/",
-    category: "audio-category",
+    category: "add-audio-category",
     MasterIndex: "audio-MasterIndex.json",
     "blog-home": "add-audio-blog-home",
     "mobile-home": "add-audio-mobile-home",

@@ -852,8 +852,6 @@ var addStory = (async function () {
             );
         }
         var fullStory = GetFullStory($("#divExtraField"));
-        fullStory = JSON.stringify(fullStory);
-        console.log(fullStory);
         GenerateStory["fullStory"] = fullStory;
         GenerateStory["itemId"] = editItemId;
         GenerateStory["fullStory_hindi"] = GetFullStory($("#divExtraFieldHindi"));

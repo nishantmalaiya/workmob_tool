@@ -514,9 +514,8 @@ async function validation(cb) {
         //     msg = "Please enter valid mobile number : " + item["mobile_no"];
         //     cansave = false;
         // }
-        var pattern = /^(\d{10}|\d{12})$/;
-        if (!pattern.test(item["mobile_no"])) {
-            msg = "Please enter valid mobile number : " + item["mobile_no"];
+        if (!/^\d{10,15}$/.test(item["mobile_no"])) {
+            msg = "Please enter valid mobile number (10-15 digits): " + item["mobile_no"];
             cansave = false;
         }
     }
