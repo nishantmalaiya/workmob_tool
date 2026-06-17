@@ -64,7 +64,7 @@ function renderOrganisations(records) {
             <div class="storycard col-md-12 row column" id="${item.id}">
                 <div class="col-md-7">${item.Organisation}</div>
                 <div class="col-md-2">
-                    <a href="#" data-toggle="modal" data-target="#organisationModal" onclick="editOrganisation('${item.Organisation}', '${item.id}')">Edit</a>
+                    <a href="#" onclick="editOrganisation('${item.Organisation}', '${item.id}')">Edit</a>
                 </div>
                 <div class="col-md-3">
                     <a href="#" onclick="deleteOrganisation('${item.id}')">Delete</a>
@@ -138,11 +138,7 @@ $("#btnAddOrganisation").click(function () {
     $('#organisationModal #txtOrganisation').val('');
     $("#hdnOrganisationId").val('');
     $('#organisationModal').find('.modal-title').text("Add New Organisation");
-    setTimeout(function () {
-        window.focus();
-        var el = document.getElementById("txtOrganisation");
-        if (el) { el.focus(); el.focus(); el.select(); }
-    }, 100);
+    $('#organisationModal').modal('show');
 });
 
 $("#btnClose").click(function () {
@@ -154,11 +150,7 @@ function editOrganisation(Organisation, id) {
     $('#organisationModal').find('.modal-title').text("Edit Organisation");
     $('#organisationModal').find('#txtOrganisation').val(Organisation);
     $('#organisationModal').find('#hdnOrganisationId').val(id);
-    setTimeout(function () {
-        window.focus();
-        var el = document.getElementById("txtOrganisation");
-        if (el) { el.focus(); el.focus(); el.select(); }
-    }, 100);
+    $('#organisationModal').modal('show');
 }
 function validation(cb) {
     var cansave = true;

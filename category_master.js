@@ -10,12 +10,25 @@ let common = require('./Js/config');
 let activePathS3 = common.getS3Path();
 var type = remote.getGlobal("sharedObj").currentStory;
 
-let currentOffset = 0; // Tracks the current offset
-const limit = 50; // Number of records to fetch per request
-let allCategories = []; // To store fetched records
-let isFetching = false; // To prevent concurrent fetches
+let lastKey = '';
+let hasMore = true;
+let allCategories = [];
+let isFetching = false;
+let scrollTimeout = null;
 
 categorymasterList();
+
+$(window).on("scroll", function () {
+    if (scrollTimeout) clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+        if ($(window).scrollTop() + $(window).height() >= $(document).height() - 100) {
+            if (!isFetching && hasMore) {
+                loadMoreCategories();
+            }
+        }
+    }, 200);
+});
+
 // async function categorymasterList() {
 //     debugger;
 // // if(activePathS3["category"] == "product-category.json")
@@ -123,36 +136,49 @@ async function deleteCat(cname, itemId) {
 
 
 
-let currentPage = 0; // Tracks the current page of data
-let isLoading = false; // Prevent multiple simultaneous loads
-const pageSize = 100; // Number of items per page
-
 async function categorymasterList() {
+    lastKey = '';
+    hasMore = true;
+    allCategories = [];
+
+    var storyCard = "";
+    storyCard = "<div class=\"storycardheader col-md-12 row\">";
+    storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title</h4></div>";
+    storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title Hindi</h4></div>";
+    storyCard = storyCard + "<div class=\"col-md-4\"><h4>Category</h4></div>";
+    storyCard = storyCard + "<div class=\"col-md-1\"></div>";
+    storyCard = storyCard + "<div class=\"col-md-1\"></div>";
+    storyCard = storyCard + "<hr></div>";
+    $('#divStory').html(storyCard);
+
+    await loadMoreCategories();
+}
+
+async function loadMoreCategories() {
+    if (isFetching || !hasMore) return;
+    isFetching = true;
     $('body').toggleClass('loaded');
     try {
-        const url = `${common.API_BASE_URL}/${activePathS3.category}`;
+        const url = lastKey
+            ? `${common.API_BASE_URL}/${activePathS3.category}?lastKey=${encodeURIComponent(lastKey)}`
+            : `${common.API_BASE_URL}/${activePathS3.category}`;
         const response = await fetch(url);
         const data = await response.json();
 
-        const categories = data.data || data.categories || (Array.isArray(data) ? data : []);
-
-        var storyCard = "";
-        storyCard = "<div class=\"storycardheader col-md-12 row\">";
-        storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title</h4></div>";
-        storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title Hindi</h4></div>";
-        storyCard = storyCard + "<div class=\"col-md-4\"><h4>Category</h4></div>";
-        // storyCard = storyCard + "<div class=\"col-md-1\"><h4>Total Stories</h4></div>";
-        storyCard = storyCard + "<div class=\"col-md-1\"></div>";
-        storyCard = storyCard + "<div class=\"col-md-1\"></div>";
-        storyCard = storyCard + "<hr></div>";
-        $('#divStory').html(storyCard);
-
-        await RenderStory(categories);
+        const batch = data.data || data.categories || (Array.isArray(data) ? data : []);
+        if (batch.length > 0) {
+            allCategories = [...allCategories, ...batch];
+            await RenderStory(batch);
+        }
+        lastKey = data.lastKey || '';
+        if (!data.hasMore) {
+            hasMore = false;
+        }
     } catch (e) {
         console.error("Error loading categories:", e);
-        $('#divStory').html('<div class="col-md-12 text-center">Failed to load categories</div>');
     } finally {
         $('body').toggleClass('loaded');
+        isFetching = false;
     }
 }
 
