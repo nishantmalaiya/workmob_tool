@@ -47,7 +47,7 @@ async function fetchOrganisations() {
 
             hasMore = data.hasMore;
             lastKey = data.lastKey || '';
-            if (!hasMore) break;
+            if (!hasMore || !lastKey) break;
         }
     } catch (e) {
         console.error("Fetch error:", e);
@@ -55,6 +55,18 @@ async function fetchOrganisations() {
         $('body').addClass('loaded');
         isFetching = false;
     }
+}
+
+function focusInput(id) {
+    setTimeout(function () {
+        var el = document.getElementById(id);
+        if (el) { el.focus(); el.focus(); }
+    }, 100);
+}
+
+function hideLoaderImmediate() {
+    $('body').addClass('loaded');
+    $('#loader-wrapper').css({ visibility: 'hidden', transform: 'translateY(-100%)', transition: 'none' });
 }
 
 function renderOrganisations(records) {
@@ -82,14 +94,17 @@ async function deleteOrganisation(id) {
             const url = `${ORGANISATIONS_API_BASE}/${encodeURIComponent(id)}`;
             const response = await fetch(url, { method: "DELETE" });
             if (response.ok) {
-                alert("Organisation deleted successfully");
-                window.location.reload();
+                $('#' + id).remove();
+                allRecords = allRecords.filter(item => item.id != id);
+                dialog.showMessageBoxSync({ type: 'info', buttons: ['OK'], message: 'Organisation deleted successfully' });
+                organisationMasterList();
             } else {
                 const data = await response.json();
-                alert("Error deleting: " + (data.error || data.msg || "Unknown error"));
+                dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Error deleting: ' + (data.error || data.msg || "Unknown error") });
             }
         } catch (e) {
             console.error("Delete error:", e);
+            dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Failed to delete organisation' });
         } finally {
             $('body').addClass('loaded');
         }
@@ -135,10 +150,12 @@ $("#btnSave").click(function () {
     });
 });
 $("#btnAddOrganisation").click(function () {
-    $('#organisationModal #txtOrganisation').val('');
+    hideLoaderImmediate();
+    $('#organisationModal #txtOrganisation').val('').prop('disabled', false).removeAttr('readonly');
     $("#hdnOrganisationId").val('');
     $('#organisationModal').find('.modal-title').text("Add New Organisation");
     $('#organisationModal').modal('show');
+    focusInput('txtOrganisation');
 });
 
 $("#btnClose").click(function () {
@@ -147,10 +164,12 @@ $("#btnClose").click(function () {
 
 
 function editOrganisation(Organisation, id) {
+    hideLoaderImmediate();
     $('#organisationModal').find('.modal-title').text("Edit Organisation");
-    $('#organisationModal').find('#txtOrganisation').val(Organisation);
+    $('#organisationModal').find('#txtOrganisation').val(Organisation).prop('disabled', false).removeAttr('readonly');
     $('#organisationModal').find('#hdnOrganisationId').val(id);
     $('#organisationModal').modal('show');
+    focusInput('txtOrganisation');
 }
 function validation(cb) {
     var cansave = true;

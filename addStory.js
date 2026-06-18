@@ -1698,8 +1698,8 @@ var addStory = (async function () {
                     $("#ddlLanguage").val("English");
 
                     // Set checkboxes
-                    $("#chk_show_contact").prop('checked', JSON_Obj["show_contact"] === true);
-                    $("#chk_consent_received").prop('checked', JSON_Obj["consent_received"] === true);
+                    $("#chk_show_contact").prop('checked', JSON_Obj["show_contact"] === true || JSON_Obj["show_contact"] === 1);
+                    $("#chk_consent_received").prop('checked', JSON_Obj["consent_received"] === true || JSON_Obj["consent_received"] === 1);
 
                 } catch (e) {
                     console.error("Error parsing JSON:", e);
