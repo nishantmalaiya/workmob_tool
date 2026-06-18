@@ -16,7 +16,7 @@ let lastKey = '';
 let globalCount = 0;
 
 /** Set to false before release — fills add-user popup with dummy data for local testing */
-const TEST_PREFILL_ADD_INSTRUCTOR = true;
+const TEST_PREFILL_ADD_INSTRUCTOR = false;
 
 /** 
  * Shows a premium notification at the top right of the screen.

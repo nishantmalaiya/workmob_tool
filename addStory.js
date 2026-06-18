@@ -14,7 +14,7 @@ let activePathS3 = common.getS3Path();
 var type = remote.getGlobal("sharedObj").currentStory;
 
 /** Set to false before release — fills add-story popup with dummy data for local testing */
-const TEST_PREFILL_STORY = true;
+const TEST_PREFILL_STORY = false;
 let editSlug = "";
 let editItemId = "";
 
@@ -74,6 +74,13 @@ function apiFetch(url, options = {}) {
 }
 
 const API_BASE_URL = common.API_BASE_URL;
+
+const STORIES_API_ALLOWED_KEYS = [
+    "location", "industry", "slug", "priority", "isFullstoryAdded",
+    "name", "landmark", "date", "streetAddress", "instructor",
+    "workmobUserName", "category", "workmobUserId", "webpthumb",
+    "thumb", "hide", "tags", "storyHeading"
+];
 
 const getEndpoint = (key) => {
     let name = activePathS3[key] || "";
@@ -924,12 +931,24 @@ var addStory = (async function () {
                 let meta = null;
                 //if (type === "default") {
                 let masterIdentifier = editSlug;
+                let storiesBody = {};
+                for (const key of STORIES_API_ALLOWED_KEYS) {
+                    if (key === "isFullstoryAdded") {
+                        storiesBody[key] = GenerateStory["fullStory"] && GenerateStory["fullStory"].trim() !== "";
+                    } else if (key === "date") {
+                        storiesBody[key] = GenerateStory["date"] && GenerateStory["date"].trim() !== ""
+                            ? GenerateStory["date"]
+                            : moment(new Date()).format("DD/MM/yyyy HH:mm");
+                    } else if (key in GenerateStory) {
+                        storiesBody[key] = GenerateStory[key];
+                    }
+                }
                 const response = await apiFetch(editSlug !== "" ? masterStoriesApiUrl + "/" + masterIdentifier : masterStoriesApiUrl, {
                     method: editSlug !== "" ? "PUT" : "POST",
                     headers: {
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify(GenerateStory),
+                    body: JSON.stringify(storiesBody),
                 });
                 meta = await response.json();
                 console.log("API Response:", meta);
@@ -2786,9 +2805,6 @@ var addStory = (async function () {
                 const pathSlug = (type !== "default" && templateTop.slug) ? templateTop.slug : normalizeDetailPathSegment(templateTop.slug);
                 let detailUrl = tagDetailPostUrl(filename, pathSlug);
                 const method = editSlug !== "" ? "PUT" : "POST";
-                if (method === "PUT") {
-                    detailUrl = `${detailUrl}/${encodeURIComponent(pathSlug)}`;
-                }
                 const postBody = buildTagStoryPostBody(templateTop, filename);
 
                 const response = await apiFetch(detailUrl, {
