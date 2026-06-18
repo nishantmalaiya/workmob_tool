@@ -998,14 +998,13 @@ var addStory = (async function () {
                     for (const cat of categoriesArr) {
                         if (!cat) continue;
 
+                        const method = isUpdate ? "PUT" : "POST";
                         const catUrl = isUpdate && type === "default"
                             ? `${CATEGORIES_API_BASE}/${cat}/${slug}`
                             : `${CATEGORIES_API_BASE}/${cat}`;
 
-                        const method = isUpdate ? "PUT" : "POST";
-
                         try {
-                            const addCategoryResponse = await apiFetch(catUrl, {
+                            let addCategoryResponse = await apiFetch(catUrl, {
                                 method: method,
                                 headers: {
                                     "Content-Type": "application/json",
@@ -1013,7 +1012,21 @@ var addStory = (async function () {
                                 body: JSON.stringify(GenerateStory),
                             });
 
-                            const categoryMeta = await addCategoryResponse.json();
+                            let categoryMeta = await addCategoryResponse.json();
+
+                            // If PUT fails because slug not found in category, fall back to POST
+                            if (categoryMeta && categoryMeta.error && categoryMeta.error.toLowerCase().includes("not found") && method === "PUT" && type === "default") {
+                                console.log(`Category '${cat}': slug not found via PUT, retrying with POST`);
+                                addCategoryResponse = await apiFetch(`${CATEGORIES_API_BASE}/${cat}`, {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify(GenerateStory),
+                                });
+                                categoryMeta = await addCategoryResponse.json();
+                            }
+
                             console.log(`Category Detail API Response for ${cat}:`, categoryMeta);
 
                             if (categoryMeta && categoryMeta.error) {
@@ -2078,7 +2091,7 @@ var addStory = (async function () {
             for (const tag of tagsArr) {
                 if (!tag) continue;
                 try {
-                    const tagUrl = tagDetailPostUrl(tag, templateTop.slug);
+                    const tagUrl = `${tagDetailPostUrl(tag)}/${encodeURIComponent(templateTop.slug)}`;
                     await apiFetch(tagUrl, { method: "DELETE" });
                     console.log(`Removed from tag: ${tag}`);
                 } catch (e) {
@@ -2803,8 +2816,10 @@ var addStory = (async function () {
         if (path == "tags") {
             try {
                 const pathSlug = (type !== "default" && templateTop.slug) ? templateTop.slug : normalizeDetailPathSegment(templateTop.slug);
-                let detailUrl = tagDetailPostUrl(filename, pathSlug);
                 const method = editSlug !== "" ? "PUT" : "POST";
+                let detailUrl = method === "PUT"
+                    ? `${tagDetailPostUrl(filename)}/${encodeURIComponent(pathSlug)}`
+                    : tagDetailPostUrl(filename);
                 const postBody = buildTagStoryPostBody(templateTop, filename);
 
                 const response = await apiFetch(detailUrl, {
