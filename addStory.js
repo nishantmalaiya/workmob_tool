@@ -2487,7 +2487,7 @@ var addStory = (async function () {
 
     let deleteFromCategory = async (slug, category) => {
         const url = type !== "default"
-            ? `${CATEGORIES_API_BASE}/${category}/${slug}`
+            ? `${CATEGORIES_API_BASE}?category=${encodeURIComponent(category)}&slug=${encodeURIComponent(slug)}`
             : `${CATEGORIES_API_BASE}/${category}`;
         try {
             const response = await apiFetch(url, {
