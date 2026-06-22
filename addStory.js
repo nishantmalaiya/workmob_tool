@@ -14,7 +14,7 @@ let activePathS3 = common.getS3Path();
 var type = remote.getGlobal("sharedObj").currentStory;
 
 /** Set to false before release — fills add-story popup with dummy data for local testing */
-const TEST_PREFILL_STORY = false;
+const TEST_PREFILL_STORY = true;
 let editSlug = "";
 let editItemId = "";
 
@@ -32,7 +32,7 @@ function prefillStoryTestData() {
         $("#divJson").find('[name="metaDesc"]').val("Test Meta Description");
         $("#divJson").find('[name="industry"]').val("Testing");
         $("#divJson").find('[name="job_title"]').val("Tester");
-        $("#divJson").find('[name="category"]').val("story");
+        $("#divJson").find('[name="category"]').val("stories");
         $("#divJson").find('[name="company_name"]').val("Test Corp");
         $("#divJson").find('[name="thumb"]').val("https://via.placeholder.com/150");
         $("#divJson").find('[name="webpthumb"]').val("https://via.placeholder.com/150");
