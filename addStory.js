@@ -998,7 +998,7 @@ var addStory = (async function () {
                     for (const cat of categoriesArr) {
                         if (!cat) continue;
 
-                        const method = isUpdate ? "PUT" : "POST";
+                        const method = isUpdate && type === "default" ? "PUT" : "POST";
                         const catUrl = isUpdate && type === "default"
                             ? `${CATEGORIES_API_BASE}/${cat}/${slug}`
                             : `${CATEGORIES_API_BASE}/${cat}`;
@@ -2486,7 +2486,7 @@ var addStory = (async function () {
     };
 
     let deleteFromCategory = async (slug, category) => {
-        const url = type === "default"
+        const url = type !== "default"
             ? `${CATEGORIES_API_BASE}/${category}/${slug}`
             : `${CATEGORIES_API_BASE}/${category}`;
         try {
