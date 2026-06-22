@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "jetro": {
+      "command": "C:\\Users\\nishant\\.jetro\\runtime\\node-win32-x64.exe",
+      "args": [
+        "C:\\Users\\nishant\\.jetro\\mcp-server\\index.js"
+      ],
+      "env": {
+        "JET_WORKSPACE": "c:\\Nishant project\\electronjs",
+        "JET_API_URL": "https://api.jetro.ai",
+        "PATH": "C:\\Users\\nishant\\.jetro\\runtime;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\;C:\\WINDOWS\\System32\\OpenSSH\\;C:\\Program Files\\TacticalAgent\\;C:\\Windows\\ArcGate_Scripts\\rclone\\;;C:\\ProgramData\\chocolatey\\bin;C:\\Users\\nishant\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts;C:\\Users\\nishant\\.local\\bin;C:\\Users\\nishant\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\nishant\\AppData\\Local\\Programs\\Microsoft VS Code\\bin;C:\\Users\\nishant\\.opencode\\bin;C:\\Users\\nishant\\AppData\\Local\\Programs\\Ollama;C:\\Users\\nishant\\AppData\\Local\\hermes\\git\\cmd;C:\\Users\\nishant\\AppData\\Local\\hermes\\git\\bin;C:\\Users\\nishant\\AppData\\Local\\hermes\\git\\usr\\bin;C:\\Users\\nishant\\AppData\\Local\\hermes\\node;C:\\Users\\nishant\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe\\ripgrep-15.1.0-x86_64-pc-windows-msvc;C:\\Users\\nishant\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.1-full_build\\bin;"
+      }
+    }
+  }
+}
