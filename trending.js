@@ -5,50 +5,87 @@ var remote = require('@electron/remote');
 var session = remote.session;
 var app = remote.app;
 var ipcRenderer = require('electron').ipcRenderer;
-var GlobalJSONObj = null;
 let common = require('./Js/config');
 let activePathS3 = common.getS3Path();
 
-trendingList();
-function trendingList() {
-    const url = `${common.API_BASE_URL}/${activePathS3["trending"]}`;
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            GlobalJSONObj = data.stories || data.data || data || [];
-            if (GlobalJSONObj && GlobalJSONObj.length > 0) {
-                $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
-                var cols = document.querySelectorAll('#divStory .column');
-                [].forEach.call(cols, addDnDHandlers);
-            }
-        })
-        .catch(err => {
-            console.log(err);
-            $('#divStory').html('');
-        });
+var GlobalJSONObj = [];
+var lastKey = '';
+var hasMore = false;
+var isFetching = false;
+var pageSize = 50;
 
-    // readS3Bucket(activePathS3["trending"], function (json) {
-    //     //fs.readFile(pathName + "/trending.json", 'utf8', function (err, data) {
-    //     if (json.err) {
-    //         $('#divStory').html('');
-    //         return console.log(json.err);
-    //     }
-    //     GlobalJSONObj = JSON.parse(json.data);
-    //     $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
-    //     var cols = document.querySelectorAll('#divStory .column');
-    //     [].forEach.call(cols, addDnDHandlers);
-    // });
+trendingList();
+
+function trendingList() {
+    GlobalJSONObj = [];
+    lastKey = '';
+    hasMore = false;
+    isFetching = false;
+    $('#divStory').html('');
+    
+    fetchNextPageOfStories();
 }
-function OldRenderStory(JSON_Obj) {
+
+async function fetchNextPageOfStories() {
+    if (isFetching) return;
+    isFetching = true;
+    
+    let url = `${common.API_BASE_URL}/${activePathS3["trending"]}`;
+    if (lastKey) {
+        url += `?lastKey=${encodeURIComponent(lastKey)}`;
+    }
+    
+    console.log("trending.js: Fetching URL:", url);
+    
+    try {
+        const response = await fetch(url);
+        console.log("trending.js: Fetch response status:", response.status);
+        const data = await response.json();
+        console.log("trending.js: Data received:", data);
+        
+        let fetchedStories = data.stories || data.data || data || [];
+        if (!Array.isArray(fetchedStories) && typeof fetchedStories === 'object') {
+            fetchedStories = fetchedStories.stories || fetchedStories.data || [];
+        }
+        
+        var startIndex = GlobalJSONObj.length;
+        GlobalJSONObj = [...GlobalJSONObj, ...fetchedStories];
+        
+        lastKey = data.lastKey || '';
+        hasMore = data.hasMore === true || (data.lastKey ? true : false);
+        
+        console.log(`trending.js: Appended ${fetchedStories.length} stories. Total: ${GlobalJSONObj.length}. hasMore: ${hasMore}, next lastKey: ${lastKey}`);
+        
+        if (fetchedStories.length > 0) {
+            $('#divStory').append(RenderStory(fetchedStories, startIndex).join(" "));
+            var cols = document.querySelectorAll('#divStory .column');
+            [].forEach.call(cols, addDnDHandlers);
+        }
+    } catch (err) {
+        console.error("trending.js: Error fetching next page:", err);
+    } finally {
+        isFetching = false;
+    }
+}
+
+function RenderStory(pageSlice, startIndex) {
     var storyCard = [];
-    for (let index = 0; index < JSON_Obj.length; index++) {
-        var _story = JSON_Obj[index];
-        storyCard.push("<div class=\"storycard col-md-12 row column\" draggable=\"true\" id=\"" + _story.slug + "\">")
-        storyCard.push("<div class=\"col-md-1\"><img class=\"storythumb\" src=\"" + _story.thumb + "\" alt=\"" + _story.name + "\"></div>");
-        storyCard.push("<div class=\"col-md-6\"><h4>" + _story.storyHeading + "</h4>" + _story.industry + "</div>");
-        storyCard.push("<div class=\"col-md-2\">" + _story.location + "</div>");
+    for (let index = 0; index < pageSlice.length; index++) {
+        var _story = pageSlice[index];
+        var globalIndex = startIndex + index;
+        storyCard.push("<div class=\"storycard col-md-12 row column\" draggable=\"true\" id=\"" + _story.slug + "\">");
+        storyCard.push("<div class=\"col-md-1\">" + (globalIndex + 1) + " <input class=\"p-0\" type=\"checkbox\" name=\"chkSlug\" tabindex='" + (10000 + globalIndex) + "' value=\"" + _story.slug + "\">&nbsp<img class=\"storythumb p-0\" src=\"" + _story.thumb + "\" alt=\"" + _story.name + "\"></div>");
+        storyCard.push("<div class=\"col-md-7\"><h5>" + _story.storyHeading + "</h5>" + _story.industry + "<br></div>");
+        storyCard.push("<div class=\"col-md-1\">" + _story.location + "</div>");
         storyCard.push("<div class=\"col-md-1\"><a name=\"Detail\" href=\"#\" data-id=\"" + _story.slug + "\" >Detail</a></div>");
-        storyCard.push("<div class=\"col-md-2\"><a href=\"#\" onclick=\"deleteStory('" + _story.slug + "')\">Remove from trending</a></div>");
+        if ($('#ddlCategory').val() == "") {
+            storyCard.push("<div class=\"col-md-1\"></div>");
+            storyCard.push("<div class=\"col-md-1\"></div>");
+        }
+        else {
+            storyCard.push("<div class=\"col-md-1\"><a href=\"#\" onclick=\"deleteStory('" + _story.slug + "')\">Remove</a></div>");
+            storyCard.push("<div class=\"col-md-1\"><input data-val='" + _story.slug + "' type=\"text\" class=\"form-control\" style=\"max-width:50px\" tabindex='" + (15000 + globalIndex) + "' name=\"txtorder\" value=\"" + globalIndex + "\"></div>");
+        }
         storyCard.push("<hr class=\"storyHr\"></div>");
     }
     return storyCard;
@@ -72,10 +109,7 @@ async function deleteStory(slug) {
 
             // Success: update local list and UI
             GlobalJSONObj = GlobalJSONObj.filter(itm => itm.slug != slug);
-            $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
-            
-            var cols = document.querySelectorAll('#divStory .column');
-            [].forEach.call(cols, addDnDHandlers);
+            refreshVisibleStories();
             
             console.log("Story removed from trending successfully via API.");
         } catch (error) {
@@ -96,16 +130,21 @@ async function saveUPre() {
         var item = GlobalJSONObj.filter(function (itm) {
             return itm.slug == _slug;
         });
-        OrderedList.push(item[0]);
+        if (item.length > 0) {
+            OrderedList.push(item[0]);
+        }
     });
+
+    GlobalJSONObj = OrderedList;
+
     $('body').toggleClass('loaded');
-    var meta = await WriteS3Bucket(OrderedList, activePathS3["trending"]);
+    var meta = await WriteS3Bucket(GlobalJSONObj, activePathS3["trending"]);
     $('body').toggleClass('loaded');
     if (meta.err) {
-        return console.log(tt.err);
+        return console.log(meta.err);
     }
-    GlobalJSONObj = OrderedList;
     console.log("The file was saved ordered!");
+    refreshVisibleStories();
 }
 
 function Model(pagename, slug) {
@@ -113,60 +152,40 @@ function Model(pagename, slug) {
     ipcRenderer.send('input-broadcast', data);
 }
 
-
 $('#divStory').on('click', 'a[name="Detail"]', function () {
     var slug = $(this).attr('data-id');
     Model("addStory.html", slug);
 });
-function RenderStory(GlobalJSONObjBrow) {
-    var storyCard = [];
-    for (let index = 0; index < GlobalJSONObjBrow.length; index++) {
-        var _story = GlobalJSONObjBrow[index];
-        storyCard.push("<div class=\"storycard col-md-12 row column\" draggable=\"true\" id=\"" + _story.slug + "\">");
-        storyCard.push("<div class=\"col-md-1\">" + (parseInt(index) + 1) + " <input class=\"p-0\" type=\"checkbox\" name=\"chkSlug\" tabindex='" + 10000 + parseInt(index) + "' value=\"" + _story.slug + "\">&nbsp<img class=\"storythumb p-0\" src=\"" + _story.thumb + "\" alt=\"" + _story.name + "\"></div>");
-        storyCard.push("<div class=\"col-md-7\"><h5>" + _story.storyHeading + "</h5>" + _story.industry + "<br>");
-        //storyCard.push(GenerateCheckbox(_story.slug));
-        //storyCard.push('<a class="btn btn-outline-primary btn-sm" name="updateStory">Update Story</a>');
-        storyCard.push('</div>');
-        storyCard.push("<div class=\"col-md-1\">" + _story.location + "</div>");
-        storyCard.push("<div class=\"col-md-1\"><a name=\"Detail\" href=\"#\" data-id=\"" + _story.slug + "\" >Detail</a></div>");
-        if ($('#ddlCategory').val() == "") {
-            storyCard.push("<div class=\"col-md-1\"></div>");
-            storyCard.push("<div class=\"col-md-1\"></div>");
-        }
-        else {
-            storyCard.push("<div class=\"col-md-1\"><a href=\"#\" onclick=\"deleteStory('" + _story.slug + "')\">Remove</a></div>");
-            storyCard.push("<div class=\"col-md-1\"><input data-val='" + _story.slug + "' type=\"text\" class=\"form-control\" style=\"max-width:50px\" tabindex='" + parseInt(GlobalJSONObjBrow.length) + index + "' name=\"txtorder\" value=\"" + index + "\"></div>");
-        }
-        // storyCard.push("<div class=\"col-md-1\"><a href=\"#\" onclick=\"deleteStory('" + _story.slug + "')\">Remove</a></div>");
-        // storyCard.push("<div class=\"col-md-1\"><input data-val='" + _story.slug + "' type=\"text\" class=\"form-control\" style=\"max-width:50px\" tabindex='" + parseInt(GlobalJSONObjBrow.length) + index + "' name=\"txtorder\" value=\"" + index + "\"></div>");
-        storyCard.push("<hr class=\"storyHr\"></div>");
-    }
-    return storyCard;
-}
+
 const ReOrderStory = async () => {
     let Storylist = [];
-    let storyOrderNew = [];
     $('[name="txtorder"]').each(function () {
-        Storylist.push({ 'order': $(this).val(), 'slug': $(this).attr('data-val') });
+        Storylist.push({ 'order': parseInt($(this).val()), 'slug': $(this).attr('data-val') });
     });
     Storylist.sort(function (a, b) {
         return a.order - b.order;
     });
+
+    let sortedVisibleItems = [];
     $(Storylist).each(function () {
         let slug = this.slug;
         let story = GlobalJSONObj.filter(function (item) {
             return item.slug == slug
         });
         if (story.length > 0) {
-            storyOrderNew.push(story[0]);
+            sortedVisibleItems.push(story[0]);
         }
     });
-    GlobalJSONObj = storyOrderNew;
+
+    GlobalJSONObj = sortedVisibleItems;
+
+    $('body').toggleClass('loaded');
     await WriteS3Bucket(GlobalJSONObj, activePathS3["trending"]);
-    console.log(GlobalJSONObj);
-    $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
+    $('body').toggleClass('loaded');
+    console.log("Reordered successfully!");
+    refreshVisibleStories();
 }
+
 $('#btnUpdateStory').on('click', ({ currentTarget }) => {
     ReOrderStory();
 });
@@ -195,11 +214,10 @@ $('#btnRemoveSelected').on('click', async function () {
         }
 
         $('body').toggleClass('loaded');
-        $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
-        var cols = document.querySelectorAll('#divStory .column');
-        [].forEach.call(cols, addDnDHandlers);
+        refreshVisibleStories();
     }
 });
+
 $('#btnRemoveAll').on('click', async function () {
     if (confirm('Are You Sure!! All files will be deleted.')) {
         $('body').toggleClass('loaded');
@@ -224,8 +242,35 @@ $('#btnRemoveAll').on('click', async function () {
         }
 
         $('body').toggleClass('loaded');
-        $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
-        var cols = document.querySelectorAll('#divStory .column');
-        [].forEach.call(cols, addDnDHandlers);
+        refreshVisibleStories();
     }
+});
+
+function refreshVisibleStories() {
+    console.log("trending.js: refreshVisibleStories. GlobalJSONObj length:", GlobalJSONObj ? GlobalJSONObj.length : 0);
+    if (!GlobalJSONObj) return;
+    
+    $('#divStory').html(RenderStory(GlobalJSONObj, 0).join(" "));
+    
+    var cols = document.querySelectorAll('#divStory .column');
+    [].forEach.call(cols, addDnDHandlers);
+}
+
+let scrollTimeout;
+$(window).on("scroll", function () {
+    if (scrollTimeout) clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+        var scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        var windowHeight = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight || 0;
+        var documentHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+        
+        console.log(`trending.js: Scroll - scrollTop: ${scrollTop}, windowHeight: ${windowHeight}, documentHeight: ${documentHeight}, hasMore: ${hasMore}, isFetching: ${isFetching}`);
+        
+        if (scrollTop + windowHeight >= documentHeight - 300) {
+            if (hasMore && !isFetching) {
+                console.log("trending.js: Triggering fetchNextPageOfStories");
+                fetchNextPageOfStories();
+            }
+        }
+    }, 150);
 });

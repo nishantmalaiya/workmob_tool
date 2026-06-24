@@ -253,30 +253,31 @@ var previousLocation = "";
 var previousTags = "";
 GetSubcategoryList();
 
-async function readStoryFeed(feed) {
-    console.log(`readStoryFeed called for feed: ${feed.chkbox}, url: ${feed.file}`);
+async function readStoryFeed(feed, slug) {
     if (!feed || !feed.file || !/^https?:\/\//i.test(feed.file)) {
-        console.log(`readStoryFeed: invalid feed or URL for ${feed ? feed.chkbox : 'undefined'}`);
         return [];
     }
 
     try {
-        const response = await apiFetch(feed.file);
+        let url = feed.file;
+        if (slug && editSlug !== "") {
+            url += `?slug=${encodeURIComponent(slug)}`;
+        }
+        console.log(`readStoryFeed: fetching feed=${feed.chkbox}, url=${url}`);
+        const response = await apiFetch(url);
         const data = await response.json();
-        console.log(`readStoryFeed response status: ${response.status} for ${feed.chkbox}`);
+        
+        let result = [];
         if (Array.isArray(data)) {
-            console.log(`readStoryFeed: returned array of length ${data.length} for ${feed.chkbox}`);
-            return data;
+            result = data;
+        } else if (data && Array.isArray(data.stories)) {
+            result = data.stories;
+        } else if (data && Array.isArray(data.data)) {
+            result = data.data;
         }
-        if (Array.isArray(data.stories)) {
-            console.log(`readStoryFeed: returned stories array of length ${data.stories.length} for ${feed.chkbox}`);
-            return data.stories;
-        }
-        if (Array.isArray(data.data)) {
-            console.log(`readStoryFeed: returned data array of length ${data.data.length} for ${feed.chkbox}`);
-            return data.data;
-        }
-        console.log(`readStoryFeed: no array found in response for ${feed.chkbox}`, data);
+        
+        result.totalCount = (data && (data.total !== undefined ? data.total : (data.totalCount !== undefined ? data.totalCount : data.count))) !== undefined ? parseInt(data.total || data.totalCount || data.count) : undefined;
+        return result;
     } catch (error) {
         console.error(`Error fetching ${feed.chkbox} feed:`, error);
     }
@@ -291,7 +292,6 @@ async function writeStoryFeed(feed, templateTop) {
 
     try {
         let identifier = templateTop.slug;
-        console.log(`writeStoryFeed: Using identifier "${identifier}" for feed "${feed.chkbox}" (type: ${type})`);
         
         let usePost = (type !== "default" && editSlug !== "" && !feed.isExist);
         let method = (editSlug !== "" && !usePost) ? "PUT" : "POST";
@@ -407,10 +407,8 @@ var addStory = (async function () {
         if (type === "default") configEndpoint = "add-config";
 
         const configUrl = `${API_BASE_URL}/${configEndpoint}`;
-        console.log("Config API URL:", configUrl);
         const configResponse = await apiFetch(configUrl);
         const configData = await configResponse.json();
-        console.log("Config API Response:", configData);
         configJson = (configData.data && Array.isArray(configData.data)) ? configData.data[0] : (configData.data || configData);
     } catch (e) {
         console.error("Error loading config via API:", e);
@@ -1464,49 +1462,59 @@ var addStory = (async function () {
         $(div)
             .children()
             .each(function () {
-                switch ($(this).find("label:first").text()) {
+                var label = $(this).find("label:first").text();
+                var $editor = $(this).find(".customeEditor");
+                if ($editor.length > 0) {
+                    var plainText = $.trim($editor.text().replace(/\u00A0/g, ' '));
+                    var htmlContent = $.trim($editor.html());
+                    // Skip empty fields (like empty headings, paragraphs, bulleted lists, video URLs, image URLs, quotes)
+                    if (plainText === "" && htmlContent !== "<br>") {
+                        return; // continue to next element
+                    }
+                }
+                switch (label) {
                     case "Heading":
                         strStory.push(
-                            "<h3>" + $.trim($(this).find(".customeEditor").html()) + "</h3>"
+                            "<h3>" + $.trim($editor.html()) + "</h3>"
                         );
                         break;
                     case "Paragraph":
                         strStory.push(
-                            "<p>" + $.trim($(this).find(".customeEditor").html()) + "</p>"
+                            "<p>" + $.trim($editor.html()) + "</p>"
                         );
                         break;
                     case "Quote":
                         strStory.push(
                             '<blockquote name="blockquote">' +
-                            $.trim($(this).find(".customeEditor").text()) +
+                            $.trim($editor.text()) +
                             "</blockquote>"
                         );
                         break;
                     case "Quote green":
                         strStory.push(
                             '<blockquote name="blockquote green">' +
-                            $.trim($(this).find(".customeEditor").text()) +
+                            $.trim($editor.text()) +
                             "</blockquote>"
                         );
                         break;
                     case "Quote dark green":
                         strStory.push(
                             '<blockquote name="blockquote darkGreen">' +
-                            $.trim($(this).find(".customeEditor").text()) +
+                            $.trim($editor.text()) +
                             "</blockquote>"
                         );
                         break;
                     case "Quote light green":
                         strStory.push(
                             '<blockquote name="blockquote lightGreen">' +
-                            $.trim($(this).find(".customeEditor").text()) +
+                            $.trim($editor.text()) +
                             "</blockquote>"
                         );
                         break;
                     case "Bulleted list":
                         strStory.push("<ul>");
                         var list = $.trim(
-                            $(this).find(".customeEditor")[0].innerText
+                            $editor[0].innerText
                         ).split("\n");
                         for (var i = 0; i < list.length; i++) {
                             if ($.trim(list[i]) != "") {
@@ -1518,28 +1526,28 @@ var addStory = (async function () {
                     case "Paragraph bold":
                         strStory.push(
                             "<p><strong>" +
-                            $.trim($(this).find(".customeEditor").text()) +
+                            $.trim($editor.text()) +
                             "</strong></p>"
                         );
                         break;
                     case "Video":
                         strStory.push(
                             '<video controls src="' +
-                            $.trim($(this).find(".customeEditor").text()) +
+                            $.trim($editor.text()) +
                             '"> </video>'
                         );
                         break;
                     case "Image Url(Right)":
                         strStory.push(
                             '<img src="{{' +
-                            $.trim($(this).find(".customeEditor").text()) +
+                            $.trim($editor.text()) +
                             ' }}" alt="{{img name}}"/>'
                         );
                         break;
                     case "Image Url(Left)":
                         strStory.push(
                             '<span class="rounded-pill mr-2 float-left img-thumb text-center"><img src="' +
-                            $.trim($(this).find(".customeEditor").text()) +
+                            $.trim($editor.text()) +
                             '"/></span>'
                         );
                         break;
@@ -1731,31 +1739,40 @@ var addStory = (async function () {
     function RenderFullStoryElement(_html) {
         nodeNames = [];
         $.each(_html, function (i, el) {
+            var txt = el.textContent ? $.trim(el.textContent.replace(/\u00A0/g, ' ')) : "";
             switch (el.nodeName) {
                 case "H3":
-                    AddField("Heading", $(el).text());
+                    if (txt !== "") {
+                        AddField("Heading", $(el).html());
+                    }
                     break;
                 case "P":
-                    if ($(el).find("strong").length == 0) {
-                        AddField("Paragraph", $(el).text());
-                    } else {
-                        AddField("Paragraph bold", $(el).text());
+                    if (txt !== "") {
+                        if ($(el).find("strong").length == 0) {
+                            AddField("Paragraph", $(el).html());
+                        } else {
+                            AddField("Paragraph bold", $(el).html());
+                        }
                     }
                     break;
                 case "BLOCKQUOTE":
-                    if ($(el).hasClass("green")) {
-                        AddField("Quote green", $(el).text());
-                    } else if ($(el).hasClass("darkGreen")) {
-                        AddField("Quote dark green", $(el).text());
-                    } else if ($(el).hasClass("lightGreen")) {
-                        AddField("Quote light green", $(el).text());
-                    } else {
-                        AddField("Quote", $(el).text());
+                    if (txt !== "") {
+                        if ($(el).hasClass("green")) {
+                            AddField("Quote green", $(el).html());
+                        } else if ($(el).hasClass("darkGreen")) {
+                            AddField("Quote dark green", $(el).html());
+                        } else if ($(el).hasClass("lightGreen")) {
+                            AddField("Quote light green", $(el).html());
+                        } else {
+                            AddField("Quote", $(el).html());
+                        }
                     }
                     break;
                 case "UL":
-                    console.log(el.nodeName, el);
-                    AddField("Bulleted list", $(el).html());
+                    if (txt !== "") {
+                        console.log(el.nodeName, el);
+                        AddField("Bulleted list", $(el).html());
+                    }
                     break;
                 case "SPAN":
                     AddField("Image Url(Left)", $(el).find("img").attr("src"));
@@ -1944,51 +1961,69 @@ var addStory = (async function () {
     });
 
     async function CheckSlugStory(slug) {
-        console.log(`CheckSlugStory called with slug: "${slug}", type: "${type}", storyAlsoOn.length: ${storyAlsoOn.length}`);
+        console.log(`CheckSlugStory: called with slug="${slug}", type="${type}"`);
+        console.log(`CheckSlugStory: storyAlsoOn =`, storyAlsoOn);
         for (var i = 0; i < storyAlsoOn.length; i++) {
-            console.log(`CheckSlugStory processing index ${i}: chkbox = ${storyAlsoOn[i]["chkbox"]}`);
-            let fileJson = await readStoryFeed(storyAlsoOn[i]);
+            let fileJson = await readStoryFeed(storyAlsoOn[i], slug);
             try {
                 var chkbox = $('[name="' + storyAlsoOn[i]["chkbox"] + '"]');
-                console.log(`Checkbox element name="${storyAlsoOn[i]["chkbox"]}" found length: ${chkbox.length}`);
-                var existingCount = parseInt(fileJson.length);
-                var MaxCount = configJson ? parseInt(configJson[storyAlsoOn[i]["chkbox"]]) : 999;
-                console.log(`existingCount: ${existingCount}, MaxCount: ${MaxCount}`);
-                if (MaxCount > existingCount) {
+                $(chkbox).prop("checked", false);
+
+                var exists = false;
+                for (var j = 0; j < fileJson.length; j++) {
+                    if (fileJson[j].slug == slug) {
+                        exists = true;
+                        storyAlsoOn[i]["isExist"] = true;
+                        storyAlsoOn[i]["index"] = j;
+                        storyAlsoOn[i]["total"] = fileJson.totalCount !== undefined ? fileJson.totalCount : fileJson.length;
+                        storyAlsoOn[i]["itemId"] = fileJson[j].itemId || "";
+                        break;
+                    }
+                }
+
+                let configKey = storyAlsoOn[i]["chkbox"];
+                let configValue = undefined;
+                if (configJson) {
+                    if (configJson[configKey] !== undefined) {
+                        configValue = configJson[configKey];
+                    } else {
+                        let matchKey = Object.keys(configJson).find(k => k.toLowerCase() === configKey.toLowerCase());
+                        if (matchKey) {
+                            configValue = configJson[matchKey];
+                        }
+                    }
+                }
+                var MaxCount = configValue !== undefined ? parseInt(configValue) : 999;
+                var existingCount = fileJson.totalCount !== undefined ? fileJson.totalCount : fileJson.length;
+
+                if (MaxCount > existingCount || exists) {
                     storyAlsoOn[i]["CanAdd"] = true;
                     $(chkbox).removeAttr("disabled");
                 } else {
                     storyAlsoOn[i]["CanAdd"] = false;
                     $(chkbox).attr("disabled", "disabled");
                 }
+
                 var lbl = chkbox.closest("label");
-                console.log(`Label found:`, lbl.length > 0 ? lbl[0].outerHTML : 'not found');
+                var displayCount = configValue !== undefined ? configValue : "0";
                 $(lbl).html(
-                    storyAlsoOn[i]["label"] + " (" + fileJson.length + ") "
+                    storyAlsoOn[i]["label"] + " (" + displayCount + ") "
                 );
                 $(lbl).append(chkbox);
-                for (var j = 0; j < fileJson.length; j++) {
-                    if (fileJson[j].slug == slug) {
-                        var chktemp = $('[name="' + storyAlsoOn[i]["chkbox"] + '"]').prop("checked");
-                        if (!tmpTopStory || chktemp) {
-                            storyAlsoOn[i]["isExist"] = true;
-                            storyAlsoOn[i]["index"] = j;
-                            storyAlsoOn[i]["total"] = fileJson.length;
-                            storyAlsoOn[i]["itemId"] = fileJson[j].itemId || "";
-                            console.log(`CheckSlugStory: Found existing itemId "${storyAlsoOn[i]["itemId"]}" for feed "${storyAlsoOn[i]["chkbox"]}"`);
-                            $('[name="' + storyAlsoOn[i]["chkbox"] + '"]').prop(
-                                "checked",
-                                true
-                            );
-                            $(chkbox).removeAttr("disabled");
-                            break;
-                        }
+
+                if (exists) {
+                    var chktemp = $('[name="' + storyAlsoOn[i]["chkbox"] + '"]').prop("checked");
+                    if (!tmpTopStory || chktemp) {
+                        $('[name="' + storyAlsoOn[i]["chkbox"] + '"]').prop(
+                            "checked",
+                            true
+                        );
+                        $(chkbox).removeAttr("disabled");
                     }
                 }
             } catch (e) { }
         }
         if (type == "gyan") {
-            $('[name="storiestop"]').prop("checked", false);
             $('[name="storiesgyan"]').prop("checked", true);
         }
     }
