@@ -205,7 +205,7 @@ const storyFeedApiUrls = {
     storieshope: `${API_BASE_URL}/` + activePathS3["stories-hope"].replace(".json", ""),
     storiesgyan: `${API_BASE_URL}/` + activePathS3["stories-gyan"].replace(".json", ""),
     storiesnamaste: `${API_BASE_URL}/` + activePathS3["stories-namaste"].replace(".json", ""),
-    // storiespromotion: `${API_BASE_URL}/` + activePathS3["stories-promotion"].replace(".json", "")
+    storiespromotion: `${API_BASE_URL}/` + activePathS3["stories-promotion"].replace(".json", "")
 };
 /** Master index list/detail (replaces S3 `activePathS3["MasterIndex"]` for load / visibility / delete). */
 var storyAlsoOn = [];
@@ -221,7 +221,7 @@ if (Need_trending_in.indexOf(type) != -1) {
     storyAlsoOn.push({ chkbox: "storieshope", file: storyFeedApiUrls.storieshope, isExist: false, index: "-1", total: "0", label: "Hope", CanAdd: false, });
     storyAlsoOn.push({ chkbox: "storiesgyan", file: storyFeedApiUrls.storiesgyan, isExist: false, index: "-1", total: "0", label: "Gyan", CanAdd: false, });
     storyAlsoOn.push({ chkbox: "storiesnamaste", file: storyFeedApiUrls.storiesnamaste, isExist: false, index: "-1", total: "0", label: "Namaste", CanAdd: false, });
-    // storyAlsoOn.push({ chkbox: "storiespromotion", file: storyFeedApiUrls.storiespromotion, isExist: false, index: "-1", total: "0", label: "Promotion", CanAdd: false, });
+    storyAlsoOn.push({ chkbox: "storiespromotion", file: storyFeedApiUrls.storiespromotion, isExist: false, index: "-1", total: "0", label: "Promotion", CanAdd: false, });
 
 }
 
@@ -234,7 +234,7 @@ storyInAllJson.push({ file: ORGANISATIONS_API_BASE });
 storyInAllJson.push({ file: storyFeedApiUrls.storieshope });
 storyInAllJson.push({ file: storyFeedApiUrls.storiesgyan });
 storyInAllJson.push({ file: storyFeedApiUrls.storiesnamaste });
-// storyInAllJson.push({ file: storyFeedApiUrls.storiespromotion });
+storyInAllJson.push({ file: storyFeedApiUrls.storiespromotion });
 
 
 let _masterCategory = [];
@@ -254,22 +254,29 @@ var previousTags = "";
 GetSubcategoryList();
 
 async function readStoryFeed(feed) {
+    console.log(`readStoryFeed called for feed: ${feed.chkbox}, url: ${feed.file}`);
     if (!feed || !feed.file || !/^https?:\/\//i.test(feed.file)) {
+        console.log(`readStoryFeed: invalid feed or URL for ${feed ? feed.chkbox : 'undefined'}`);
         return [];
     }
 
     try {
         const response = await apiFetch(feed.file);
         const data = await response.json();
+        console.log(`readStoryFeed response status: ${response.status} for ${feed.chkbox}`);
         if (Array.isArray(data)) {
+            console.log(`readStoryFeed: returned array of length ${data.length} for ${feed.chkbox}`);
             return data;
         }
         if (Array.isArray(data.stories)) {
+            console.log(`readStoryFeed: returned stories array of length ${data.stories.length} for ${feed.chkbox}`);
             return data.stories;
         }
         if (Array.isArray(data.data)) {
+            console.log(`readStoryFeed: returned data array of length ${data.data.length} for ${feed.chkbox}`);
             return data.data;
         }
+        console.log(`readStoryFeed: no array found in response for ${feed.chkbox}`, data);
     } catch (error) {
         console.error(`Error fetching ${feed.chkbox} feed:`, error);
     }
@@ -285,12 +292,17 @@ async function writeStoryFeed(feed, templateTop) {
     try {
         let identifier = templateTop.slug;
         console.log(`writeStoryFeed: Using identifier "${identifier}" for feed "${feed.chkbox}" (type: ${type})`);
+        
+        let usePost = (type !== "default" && editSlug !== "" && !feed.isExist);
+        let method = (editSlug !== "" && !usePost) ? "PUT" : "POST";
+        
         let url = `${feed.file}/${identifier}`;
-        if (type !== "default" && editSlug === "") {
+        if (method === "POST" && type !== "default") {
             url = `${feed.file}`;
         }
+        
         const response = await apiFetch(url, {
-            method: editSlug !== "" ? "PUT" : "POST",
+            method: method,
             headers: {
                 "Content-Type": "application/json",
             },
@@ -1930,12 +1942,16 @@ var addStory = (async function () {
     });
 
     async function CheckSlugStory(slug) {
+        console.log(`CheckSlugStory called with slug: "${slug}", type: "${type}", storyAlsoOn.length: ${storyAlsoOn.length}`);
         for (var i = 0; i < storyAlsoOn.length; i++) {
+            console.log(`CheckSlugStory processing index ${i}: chkbox = ${storyAlsoOn[i]["chkbox"]}`);
             let fileJson = await readStoryFeed(storyAlsoOn[i]);
             try {
                 var chkbox = $('[name="' + storyAlsoOn[i]["chkbox"] + '"]');
+                console.log(`Checkbox element name="${storyAlsoOn[i]["chkbox"]}" found length: ${chkbox.length}`);
                 var existingCount = parseInt(fileJson.length);
                 var MaxCount = configJson ? parseInt(configJson[storyAlsoOn[i]["chkbox"]]) : 999;
+                console.log(`existingCount: ${existingCount}, MaxCount: ${MaxCount}`);
                 if (MaxCount > existingCount) {
                     storyAlsoOn[i]["CanAdd"] = true;
                     $(chkbox).removeAttr("disabled");
@@ -1944,6 +1960,7 @@ var addStory = (async function () {
                     $(chkbox).attr("disabled", "disabled");
                 }
                 var lbl = chkbox.closest("label");
+                console.log(`Label found:`, lbl.length > 0 ? lbl[0].outerHTML : 'not found');
                 $(lbl).html(
                     storyAlsoOn[i]["label"] + " (" + fileJson.length + ") "
                 );
