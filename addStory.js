@@ -1746,6 +1746,7 @@ var addStory = (async function () {
                         AddField("Heading", $(el).html());
                     }
                     break;
+                case "DIV":
                 case "P":
                     if (txt !== "") {
                         if ($(el).find("strong").length == 0) {
