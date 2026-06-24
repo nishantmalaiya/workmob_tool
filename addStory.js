@@ -407,8 +407,10 @@ var addStory = (async function () {
         if (type === "default") configEndpoint = "add-config";
 
         const configUrl = `${API_BASE_URL}/${configEndpoint}`;
+        console.log("Config API URL:", configUrl);
         const configResponse = await apiFetch(configUrl);
         const configData = await configResponse.json();
+        console.log("Config API Response:", configData);
         configJson = (configData.data && Array.isArray(configData.data)) ? configData.data[0] : (configData.data || configData);
     } catch (e) {
         console.error("Error loading config via API:", e);
