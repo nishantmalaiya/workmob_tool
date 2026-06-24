@@ -50,7 +50,8 @@ function GetCategoryList(offset, limit) {
   }
 
   let apiName = (activePathS3.category || "categories").replace(".json", "");
-  const url = `${common.API_BASE_URL}/${apiName}`;
+  const hasLastKey = lastKey ? `&lastKey=${encodeURIComponent(lastKey)}` : '';
+  const url = `${common.API_BASE_URL}/${apiName}?limit=${limit}${hasLastKey}`;
 
   fetch(url)
     .then(response => response.json())
@@ -87,9 +88,9 @@ function GetCategoryList(offset, limit) {
               if (scrollTimeout) clearTimeout(scrollTimeout);
               scrollTimeout = setTimeout(() => {
                 if (dropdown.scrollTop() + dropdown.height() >= dropdown[0].scrollHeight - 10) {
-                  if (!isFetchingCategories && hasMore) {
+                    if (!isFetchingCategories && hasMore) {
                     console.log('Fetching more categories...');
-                    GetCategoryList(currentOffset, limit);
+                    GetCategoryList(currentOffset, limit, lastKey);
                   }
                 }
               }, 200);

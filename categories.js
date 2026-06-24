@@ -7,43 +7,43 @@ var app = remote.app;
 var ipcRenderer = require('electron').ipcRenderer;
 let common = require('./Js/config');
 let activePathS3 = common.getS3Path();
+let catLastEvaluatedKey = null;
+let catHasMore = true;
+let catLoading = false;
+let catLastLoadTime = 0;
 GetCategoriesList();
+
+document.addEventListener('scroll', function (e) {
+    var el = e.target;
+    if (!el || !el.matches) return;
+    
+    // Match either the outer selectize-dropdown or the inner selectize-dropdown-content
+    var isDropdown = el.matches('.selectize-dropdown') || el.closest('.selectize-dropdown') || 
+                     el.matches('.selectize-dropdown-content') || el.closest('.selectize-dropdown-content');
+    if (!isDropdown) return;
+
+    if (!catHasMore || catLoading || !catLastEvaluatedKey) return;
+
+    var target = el;
+    var scrollPos = Math.ceil(target.scrollTop + target.clientHeight);
+    var scrollHeight = target.scrollHeight;
+    if (scrollPos >= scrollHeight - 50) {
+        loadMoreCategories();
+    }
+}, true);
+
 var GlobalJSONObj = null;
 var JSON_FileSlug = null;
 var JSON_FileName = null;
 let isFetching = false;
 let lastEvaluatedKey = null;
 let hasMoreRecords = true;
-// function GetCategoriesList() {
-//     //fs.readFile(pathName + "/category.json", 'utf8', function (err, data) {
-//     readS3Bucket(activePathS3["category"], function (json) {
-//         if (json.err) {
-//             return console.log(json.err);
-//         }
-//         var element = [];
-//         element.push("<option value=\"\">select</option>");
-//         var JSON_ObjCategory = JSON.parse(json.data);
-//         for (let index = 0; index < JSON_ObjCategory.length; index++) {
-//             var _category = JSON_ObjCategory[index];
-//             element.push("<option value=\"" + _category.category + "\">" + _category.title + "</option>");
-//         }
-//         $('#ddlCategory').html(element.join(' '));
-//         var $select = $("#ddlCategory").selectize({
-//             sortField: 'text',
-//             maxOptions: 100000,
-//             placeholder: "Select Category"
-//         });
-//         var selectize = $select[0].selectize;
-//         selectize.setValue('');
-
-//     });
-// }
-
-
-
 
 function GetCategoriesList() {
-    const url = `${common.API_BASE_URL}/${activePathS3.category}`;
+    const url = `${common.API_BASE_URL}/${activePathS3.category}?limit=100`;
+    catLastEvaluatedKey = null;
+    catHasMore = true;
+    catLoading = false;
 
     fetch(url)
         .then(response => response.json())
@@ -51,6 +51,12 @@ function GetCategoriesList() {
             var element = [];
             element.push("<option value=\"\">select</option>");
             const JSON_ObjCategory = data.data || data.categories || (Array.isArray(data) ? data : []);
+            catHasMore = data.hasMore || false;
+            const nextKey = data.lastKey || data.lastEvaluatedKey;
+            console.log('Initial cats:', JSON_ObjCategory.length, 'hasMore:', catHasMore, 'lastKey:', nextKey);
+            if (catHasMore && nextKey) {
+                catLastEvaluatedKey = nextKey;
+            }
             for (let index = 0; index < JSON_ObjCategory.length; index++) {
                 var _category = JSON_ObjCategory[index];
                 element.push("<option value=\"" + _category.category + "\">" + _category.title + "</option>");
@@ -66,6 +72,50 @@ function GetCategoriesList() {
         })
         .catch(err => {
             console.log(err);
+        });
+}
+
+function loadMoreCategories() {
+    if (!catHasMore || catLoading || !catLastEvaluatedKey) return;
+    catLoading = true;
+
+    let keyParam = typeof catLastEvaluatedKey === 'object' ? JSON.stringify(catLastEvaluatedKey) : catLastEvaluatedKey;
+    let url = `${common.API_BASE_URL}/${activePathS3.category}?lastKey=${encodeURIComponent(keyParam)}`;
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            const categories = data.data || data.categories || (Array.isArray(data) ? data : []);
+            catHasMore = data.hasMore || false;
+            const nextKey = data.lastKey || data.lastEvaluatedKey;
+            if (catHasMore && nextKey) {
+                catLastEvaluatedKey = nextKey;
+            } else {
+                catLastEvaluatedKey = null;
+            }
+
+            var selectize = $("#ddlCategory")[0].selectize;
+            for (let index = 0; index < categories.length; index++) {
+                var _category = categories[index];
+                selectize.addOption({ value: _category.category, text: _category.title });
+            }
+            selectize.refreshOptions(false);
+            catLoading = false;
+
+            if (catHasMore && catLastEvaluatedKey && Date.now() - catLastLoadTime > 800) {
+                var dd = document.querySelector('.selectize-dropdown');
+                if (dd && dd.style.display !== 'none') {
+                    var el = dd.querySelector('.selectize-dropdown-content');
+                    if (el && el.scrollHeight <= el.clientHeight + 1) {
+                        catLastLoadTime = Date.now();
+                        loadMoreCategories();
+                    }
+                }
+            }
+        })
+        .catch(err => {
+            console.log(err);
+            catLoading = false;
         });
 }
 
@@ -119,26 +169,6 @@ $('#ddlCategory').on('change', function () {
             $('body').toggleClass('loaded');
 
         };
-
-
-        // try {
-        //     readS3Bucket(JSON_FileSlug, function (json) {
-        //         $('body').toggleClass('loaded');
-        //         // fs.readFile(pathName + "/" + $(this).val() + ".json", 'utf8', function (err, data) {
-        //         if (json.err) {
-        //             $('#divStory').html('');
-        //             return console.log(json.err);
-        //         }
-        //         GlobalJSONObj = JSON.parse(json.data);
-        //         $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
-        //         var cols = document.querySelectorAll('#divStory .column');
-        //         [].forEach.call(cols, addDnDHandlers);
-        //     });
-        // } catch (e) {
-        //     $('body').toggleClass('loaded');
-        //     console.log(e);
-        //     $('#divStory').html('');
-        // }
     }
 });
 
@@ -213,28 +243,6 @@ async function deleteStory(slug) {
     }
 }
 
-//function deleteStory(slug) {
-//    if (confirm("Are you sure you want to delete this?")) {
-//        GlobalJSONObj = GlobalJSONObj.filter(function (itm) {
-//            return itm.slug != slug;
-//        });
-//        WriteS3Bucket(GlobalJSONObj, JSON_FileSlug, function (tt) {
-//        //fs.writeFile(pathName + "/" + JSON_FileSlug, JSON.stringify(GlobalJSONObj), function (err) {
-//            if (tt.err) {
-//                return console.log(tt.err);
-//            }
-//            $('#divStory').html(RenderStory(GlobalJSONObj).join(" "));
-//            var cols = document.querySelectorAll('#divStory .column');
-//            [].forEach.call(cols, addDnDHandlers);
-//            console.log("The file was saved!");
-//        });
-//    }
-//    else {
-//        return false;
-//    }
-//}
-
-
 async function saveUPre() {
     var OrderedList = [];
     $('.storycard').each(function () {
@@ -252,25 +260,6 @@ async function saveUPre() {
     console.log("The file was saved ordered!");
 }
 
-
-//function saveUPre() {
-//    var OrderedList = [];
-//    $('.storycard').each(function () {
-//        var _slug = $(this).attr('id');
-//        var item = GlobalJSONObj.filter(function (itm) {
-//            return itm.slug == _slug;
-//        });
-//        OrderedList.push(item[0]);
-//    });
-//    WriteS3Bucket(OrderedList, JSON_FileSlug, function (tt) {
-//   // fs.writeFile(pathName + "/" + JSON_FileSlug, JSON.stringify(OrderedList), function (err) {
-//        if (tt.err) {
-//            return console.log(tt.err);
-//        }
-//        GlobalJSONObj = OrderedList;
-//        console.log("The file was saved ordered!");
-//    });
-//}
 function Pagination(key) {
     lastEvaluatedKey = key;
 }
@@ -279,7 +268,6 @@ function Model(pagename, slug) {
     let data = { "slug": slug, "pagename": pagename, "category": $('#ddlCategory').val() };
     ipcRenderer.send('input-broadcast', data);
 }
-
 
 $('#divStory').on('click', 'a[name="Detail"]', function () {
     var slug = $(this).attr('data-id');
