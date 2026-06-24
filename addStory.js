@@ -1486,28 +1486,28 @@ var addStory = (async function () {
                     case "Quote":
                         strStory.push(
                             '<blockquote name="blockquote">' +
-                            $.trim($editor.text()) +
+                            $.trim($editor.html()) +
                             "</blockquote>"
                         );
                         break;
                     case "Quote green":
                         strStory.push(
                             '<blockquote name="blockquote green">' +
-                            $.trim($editor.text()) +
+                            $.trim($editor.html()) +
                             "</blockquote>"
                         );
                         break;
                     case "Quote dark green":
                         strStory.push(
                             '<blockquote name="blockquote darkGreen">' +
-                            $.trim($editor.text()) +
+                            $.trim($editor.html()) +
                             "</blockquote>"
                         );
                         break;
                     case "Quote light green":
                         strStory.push(
                             '<blockquote name="blockquote lightGreen">' +
-                            $.trim($editor.text()) +
+                            $.trim($editor.html()) +
                             "</blockquote>"
                         );
                         break;
