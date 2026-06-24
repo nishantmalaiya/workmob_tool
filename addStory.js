@@ -450,15 +450,30 @@ var addStory = (async function () {
     async function GetCategoryList() {
         // debugger;
         try {
-            const url = `${CATEGORIES_LIST_API_BASE}?limit=100`;
-            console.log("GetCategoryList: fetching url:", url);
-            const response = await apiFetch(url);
-            const data = await response.json();
-            const JSON_Obj = data.data || data.categories || (Array.isArray(data) ? data : []);
+            var allCategories = [];
+            var lastKey = "";
+            var hasMore = true;
+            while (hasMore) {
+                var url = `${CATEGORIES_LIST_API_BASE}?limit=100`;
+                if (lastKey) {
+                    var keyParam = typeof lastKey === 'object' ? JSON.stringify(lastKey) : lastKey;
+                    url += `&lastKey=${encodeURIComponent(keyParam)}`;
+                }
+                console.log("GetCategoryList: fetching url:", url);
+                const response = await apiFetch(url);
+                const data = await response.json();
+                const JSON_Obj = data.data || data.categories || (Array.isArray(data) ? data : []);
+                allCategories = allCategories.concat(JSON_Obj);
+                
+                hasMore = data.hasMore === true || (data.lastKey ? true : false);
+                lastKey = data.lastKey || "";
+                
+                if (!JSON_Obj.length) break;
+            }
 
             var element = [];
-            for (var i = 0; i < JSON_Obj.length; i++) {
-                var _category = JSON_Obj[i];
+            for (var i = 0; i < allCategories.length; i++) {
+                var _category = allCategories[i];
                 element.push('<option value="' + _category.category + '">' + _category.title + " </option>");
                 _masterCategory.push(_category.category);
             }
