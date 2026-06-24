@@ -450,7 +450,9 @@ var addStory = (async function () {
     async function GetCategoryList() {
         // debugger;
         try {
-            const response = await apiFetch(`${CATEGORIES_LIST_API_BASE}?limit=100`);
+            const url = `${CATEGORIES_LIST_API_BASE}?limit=100`;
+            console.log("GetCategoryList: fetching url:", url);
+            const response = await apiFetch(url);
             const data = await response.json();
             const JSON_Obj = data.data || data.categories || (Array.isArray(data) ? data : []);
 
