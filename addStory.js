@@ -97,7 +97,12 @@ const INSTRUCTORS_API_BASE = (() => {
     return `${API_BASE_URL}/${base}`;
 })();
 
-const LOCATIONS_API_BASE = `${API_BASE_URL}/locations`;
+const LOCATIONS_API_BASE = (() => {
+    let base = getEndpoint("location");
+    if (base === "location" || !base) base = "locations";
+    return `${API_BASE_URL}/${base}`;
+})();
+const LOCATIONS_MASTER_API_BASE = `${API_BASE_URL}/locations`;
 const ORGANISATIONS_API_BASE = `${API_BASE_URL}/organisation`;
 const ORGANISATION_MASTER_API_BASE = `${API_BASE_URL}/organisation_master`;
 const MASTER_TAG_API_BASE = `${API_BASE_URL}/master_tag`;
@@ -251,6 +256,7 @@ var tmpTopStory = false;
 var previousOrganisation = "";
 var previousLocation = "";
 var previousTags = "";
+var previousInstructor = "";
 GetSubcategoryList();
 
 async function readStoryFeed(feed, slug) {
@@ -293,13 +299,10 @@ async function writeStoryFeed(feed, templateTop) {
     try {
         let identifier = templateTop.slug;
         
-        let usePost = (type !== "default" && editSlug !== "" && !feed.isExist);
+        let usePost = (editSlug !== "" && !feed.isExist);
         let method = (editSlug !== "" && !usePost) ? "PUT" : "POST";
         
-        let url = `${feed.file}/${identifier}`;
-        if (method === "POST" && type !== "default") {
-            url = `${feed.file}`;
-        }
+        let url = method === "POST" ? `${feed.file}` : `${feed.file}/${identifier}`;
         
         const response = await apiFetch(url, {
             method: method,
@@ -671,7 +674,7 @@ var addStory = (async function () {
     }
     async function GetLocationList() {
         try {
-            const response = await apiFetch(LOCATIONS_API_BASE);
+            const response = await apiFetch(LOCATIONS_MASTER_API_BASE);
             const data = await response.json();
             const JSON_Obj = data.locations;
 
@@ -954,6 +957,50 @@ var addStory = (async function () {
                 }
             }
         }
+        if (editSlug !== "") {
+            const categoryVal = $("#divJson #ddl_ddlcategory").val();
+            const oldCategoryStr = Array.isArray(previousCategory) ? previousCategory.filter(Boolean).sort().join(", ") : (previousCategory || "");
+            const newCategoryStr = Array.isArray(categoryVal) ? categoryVal.filter(Boolean).sort().join(", ") : (categoryVal || "");
+
+            const oldLocationStr = previousLocation || "";
+            const newLocationStr = $("#divJson #ddl_location").val() || "";
+
+            const oldInstructorStr = previousInstructor || "";
+            const newInstructorStr = $("#divJson #ddl_instructor").val() || "";
+
+            const isChanged = (oldCategoryStr !== newCategoryStr) || 
+                              (oldLocationStr !== newLocationStr) || 
+                              (oldInstructorStr !== newInstructorStr);
+
+            if (isChanged) {
+                const nameVal = $("#divJson").find('[name="name"]').val() || "Story";
+                const message = "You are about to update the following information:";
+                
+                let detail = "";
+                detail += `Category: ${oldCategoryStr || "None"} → ${newCategoryStr || "None"}\n`;
+                detail += `Location: ${oldLocationStr || "None"} → ${newLocationStr || "None"}\n`;
+                detail += `Contact Number: ${oldInstructorStr || "None"} → ${newInstructorStr || "None"}\n\n`;
+                detail += "Please review the changes before proceeding.\nDo you want to save these changes?";
+
+                const options = {
+                    type: "question",
+                    buttons: ["Cancel", "Save Changes"],
+                    defaultId: 1,
+                    title: `Confirm Changes in ${nameVal}`,
+                    message: message,
+                    detail: detail
+                };
+
+                const responseIdx = dialog.showMessageBoxSync(null, options);
+                if (responseIdx === 0) {
+                    console.log("Update cancelled by user via confirmation popup.");
+                    $("body").toggleClass("loaded");
+                    $("#btnSave").prop("disabled", false);
+                    return false;
+                }
+            }
+        }
+
         tmpTopStory = true;
         validaton(GenerateStory, async function (result) {
             if (result.cansave) {
@@ -1165,17 +1212,15 @@ var addStory = (async function () {
 
             if (newTags.length > 0) {
                 try {
-                    const method = editSlug !== "" ? "PUT" : "POST";
-                    const url = method === "PUT" ? `${MASTER_TAG_API_BASE}/${editSlug}` : MASTER_TAG_API_BASE;
-                    const response = await apiFetch(url, {
-                        method: method,
+                    const response = await apiFetch(MASTER_TAG_API_BASE, {
+                        method: "POST",
                         headers: {
                             "Content-Type": "application/json",
                         },
                         body: JSON.stringify(newTags),
                     });
                     const meta = await response.json();
-                    console.log(`Master Tag API Response (${method}):`, meta);
+                    console.log("Master Tag API Response (POST):", meta);
                 } catch (error) {
                     console.error("Error writing master tags via API:", error);
                 }
@@ -1695,6 +1740,7 @@ var addStory = (async function () {
 
                             if (key === "instructor") {
                                 tmpinstructor = JSON_Obj[key];
+                                previousInstructor = JSON_Obj[key];
                                 GetInstructorList();
                             } else if (key === "tags") {
                                 previousTags = JSON_Obj[key];
@@ -2508,7 +2554,6 @@ var addStory = (async function () {
     }
 
     let deleteFromLocation = async (slug, location) => {
-        if (type !== "default") return;
         const locSlug = normalizeLocationSlug(location);
         const pathSlug = normalizeDetailPathSegment(slug);
         if (!pathSlug) {
@@ -2527,18 +2572,38 @@ var addStory = (async function () {
     };
 
     let deleteFromInstructor = async (slug, instructor) => {
+        if (!instructor || instructor === "noinstructor") return;
         const url = `${INSTRUCTORS_API_BASE}/${instructor}`;
         try {
+            console.log(`deleteFromInstructor: fetching current instructor ${instructor} profile to check if slug ${slug} exists`);
+            const response = await apiFetch(url);
+            if (!response.ok) {
+                console.error(`deleteFromInstructor: Failed to fetch instructor ${instructor}`, response.status);
+                return;
+            }
+            const data = await response.json();
+            const instructorData = data.instructor || data;
+            
             let instructorKey = type === "default" ? "story" : type;
-            const body = {};
-            body[instructorKey] = [];
-
-            const response = await apiFetch(url, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body)
-            });
-            console.log("Delete from instructor response:", await response.json());
+            if (instructorData && Array.isArray(instructorData[instructorKey])) {
+                const initialLen = instructorData[instructorKey].length;
+                instructorData[instructorKey] = instructorData[instructorKey].filter(item => item.slug !== slug);
+                if (instructorData[instructorKey].length !== initialLen) {
+                    console.log(`deleteFromInstructor: Slug ${slug} found. Removing and saving updated profile.`);
+                    const body = {};
+                    body[instructorKey] = instructorData[instructorKey];
+                    const updateResponse = await apiFetch(url, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(body)
+                    });
+                    console.log("Delete from instructor response:", await updateResponse.json());
+                } else {
+                    console.log(`deleteFromInstructor: Slug ${slug} not found in instructor ${instructor} ${instructorKey} list. No update needed.`);
+                }
+            } else {
+                console.log(`deleteFromInstructor: Instructor ${instructor} has no stories list for key ${instructorKey}. No update needed.`);
+            }
         } catch (e) {
             console.error("Error deleting from instructor via API:", e);
         }
@@ -2579,76 +2644,20 @@ var addStory = (async function () {
     async function WriteonTrendingNew(slug, templateTop) {
         for (var i = 0; i < storyAlsoOn.length; i++) {
             var feed = storyAlsoOn[i];
-            if (!$('[name="' + feed["chkbox"] + '"]').is(":checked")) {
-                continue;
-            }
-
-            const meta = await writeStoryFeed(feed, templateTop);
-            console.log(feed["label"] + " API Response:", meta);
-        }
-        /*
-                for (var i = 0; i < storyAlsoOn.length; i++) {
-                    var trand = storyAlsoOn[i];
-                    if ($('[name="' + trand["chkbox"] + '"]').is(":checked") || trand["manual"]) {
-                        var topJson = [];
-                        const IsFileExists = await existsS3Bucket(trand["file"], i);
-                        if (IsFileExists.isExists) {
-                            var _index = parseInt(IsFileExists.data);
-                            const trandJsonResult = await readS3BucketAsync(storyAlsoOn[_index].file, "");
-                            if (trandJsonResult.err) {
-                            } else {
-                                topJson = JSON.parse(trandJsonResult.data);
-                                if (!$.isArray(topJson)) {
-                                    topJson = [topJson];
-                                }
-                            }
-                        }
-        
-                        if (topJson.length == 0) {
-                            topJson = [templateTop];
-                        } else {
-                            var isExists = topJson.filter(function (itm) {
-                                return itm.slug == templateTop.slug;
-                            });
-                            if (isExists.length == 0) {
-                                topJson.push(templateTop);
-                            }
-                        }
-                        await WriteS3Bucket(topJson, storyAlsoOn[_index]["file"]);
-                        //if (storyAlsoOn[_index]["manual"]) {
-                        //    for (var j = 0; j < topJson.length; j++) {
-                        //        if (topJson[j].slug == templateTop.slug) {
-                        //            storyAlsoOn = storyAlsoOn.filter(function (i) { return i.chkbox != $('#ddl_ddlcategory').val(); })
-                        //            storyAlsoOn.push({ "chkbox": $('#ddl_ddlcategory').val(), "file": mainCategory, "isExist": true, "index": j, "manual": true });
-                        //        }
-                        //    }
-                        //}
-                    } else {
-                        if (trand["isExist"]) {
-                            const trandJsonResult = await readS3BucketAsync(trand["file"], "");
-                            if (trandJsonResult.err) {
-                            } else {
-                                topJson = JSON.parse(trandJsonResult.data);
-                                topJson = topJson.filter(function (itm) {
-                                    return itm.slug != slug;
-                                });
-                                //await WriteS3Bucket(topJson, json["file"]);
-                                await WriteS3Bucket(topJson, trand["file"]);
-                                storyAlsoOn = storyAlsoOn.filter(function (i) {
-                                    return i.chkbox != $("#ddl_ddlcategory").val();
-                                });
-                                // storyAlsoOn.push({
-                                //     chkbox: $("#ddl_ddlcategory").val(),
-                                //     file: mainCategory,
-                                //     isExist: true,
-                                //     index: 0,
-                                //     manual: true,
-                                // });
-                            }
-                        }
-                    }
+            var isChecked = $('[name="' + feed["chkbox"] + '"]').is(":checked");
+            
+            if (isChecked) {
+                const meta = await writeStoryFeed(feed, templateTop);
+                console.log(feed["label"] + " API Response:", meta);
+                feed.isExist = true;
+            } else {
+                if (editSlug !== "" && feed.isExist) {
+                    console.log(`Feed ${feed.label} unticked. Deleting story ${slug} from feed...`);
+                    await deleteFromFeed(feed.file, slug);
+                    feed.isExist = false;
                 }
-            */
+            }
+        }
     }
     const WriteInMasterIndex = async (templateTop) => {
         var categoryList = [];
@@ -2720,31 +2729,47 @@ var addStory = (async function () {
 
     let saveOninstructor = async (templateTop) => {
         let _instructor = $('#ddl_instructor').val();
-        console.log("Saving story to instructor:", _instructor, "Type:", type);
+        console.log("Saving story to instructor:", _instructor, "Type:", type, "Previous Instructor:", previousInstructor);
+        
+        // 1. If we are updating an existing story and the instructor has changed, remove from previous instructor
+        if (editSlug !== "" && previousInstructor && previousInstructor !== "noinstructor" && previousInstructor !== _instructor) {
+            console.log(`Instructor changed from ${previousInstructor} to ${_instructor}. Deleting story from previous instructor...`);
+            await deleteFromInstructor(templateTop.slug, previousInstructor);
+        }
+
+        // 2. Save on the new instructor
         if (_instructor != "noinstructor" && _instructor != null && _instructor != "") {
             try {
                 let instructorKey = type === "default" ? "story" : type;
                 const body = {};
-                console.log("Current _instructorData:", _instructorData);
-                if (type !== "default" && _instructorData) {
-                    if (!Array.isArray(_instructorData[instructorKey])) {
-                        _instructorData[instructorKey] = [];
+                
+                // Fetch latest instructor data from API to avoid stale local state and overwrite issues
+                let currentInstructorData = null;
+                const getRes = await apiFetch(`${INSTRUCTORS_API_BASE}/${encodeURIComponent(_instructor)}`);
+                if (getRes.ok) {
+                    const searchData = await getRes.json();
+                    currentInstructorData = searchData.instructor || searchData;
+                }
+                
+                if (currentInstructorData) {
+                    if (!Array.isArray(currentInstructorData[instructorKey])) {
+                        currentInstructorData[instructorKey] = [];
                         console.log(`Initialized empty array for key: ${instructorKey}`);
                     }
-                    let index = _instructorData[instructorKey].findIndex(item => item.slug === templateTop.slug);
+                    let index = currentInstructorData[instructorKey].findIndex(item => item.slug === templateTop.slug);
                     if (index !== -1) {
-                        _instructorData[instructorKey][index] = templateTop;
+                        currentInstructorData[instructorKey][index] = templateTop;
                         console.log(`Updated existing story in ${instructorKey} at index ${index}`);
                     } else {
-                        _instructorData[instructorKey].push(templateTop);
-                        console.log(`Appended new story to ${instructorKey}. New length: ${_instructorData[instructorKey].length}`);
+                        currentInstructorData[instructorKey].push(templateTop);
+                        console.log(`Appended new story to ${instructorKey}. New length: ${currentInstructorData[instructorKey].length}`);
                     }
-                    body[instructorKey] = _instructorData[instructorKey];
+                    body[instructorKey] = currentInstructorData[instructorKey];
                 } else {
                     body[instructorKey] = [templateTop];
                     console.log(`Default/No data path: Setting ${instructorKey} to single-item array`);
                 }
-                //console.log("instructor_data", _instructorData);
+                
                 console.log("Final request body for instructor update:", JSON.stringify(body));
 
                 const response = await apiFetch(`${INSTRUCTORS_API_BASE}/${_instructor}`, {
@@ -2756,52 +2781,17 @@ var addStory = (async function () {
                 });
                 const meta = await response.json();
                 console.log("Instructor Story API Response:", meta);
+                
+                // Update previousInstructor to the current instructor for future updates
+                previousInstructor = _instructor;
             } catch (error) {
                 console.error("Error saving instructor story via API:", error);
             }
-
-            /*
-            // debugger;
-            // chk_consent_received
-            // chk_show_contact
-            //if (Need_trending_in.indexOf(type) != -1) {
-            let instructorDetail = null;
-            var submeta = await readS3BucketAsync(`${activePathS3["instructorPath"]}${_instructor}.json`, "");
-            if (submeta.err) {
-                console.log(submeta.err);
-            } else {
-                instructorDetail = JSON.parse(submeta.data);
-            }
-            console.log(instructorDetail);
-            if (instructorDetail != null) {
-
-                if (instructorDetail[type.replace("default", "story")] == undefined) {
-                    instructorDetail[type.replace("default", "story")] = [];
-                }
-
-                var IsSlugExists = instructorDetail[type.replace("default", "story")].filter(function (item) {
-                    return item.slug == templateTop.slug;
-                });
-
-                if (IsSlugExists.length == 0) {
-                    instructorDetail[type.replace("default", "story")].push(templateTop);
-                }
-                else {
-                    for (let index = 0; index < instructorDetail[type.replace("default", "story")].length; index++) {
-                        const element = instructorDetail[type.replace("default", "story")][index];
-                        if (element.slug == templateTop.slug) {
-                            instructorDetail[type.replace("default", "story")][index] = templateTop;
-                            // if(templateTop.)
-                            break;
-                        }
-                    }
-                }
-
-                await WriteS3Bucket(instructorDetail, `${activePathS3["instructorPath"]}${_instructor}.json`, function (tt) { });
-            }
-            */
+        } else {
+            // Reset previousInstructor to empty if the story has no instructor linked
+            previousInstructor = "";
         }
-    }
+    };
     let saveOnSubcategory = async (templateTop) => {
         var checkedCategories = $('#ddl_sub_categories').val();
         if ($('#ddl_sub_categories').attr('multiple') == "multiple" && checkedCategories.length > 0) {
@@ -2857,7 +2847,13 @@ var addStory = (async function () {
             }
 
             try {
-                const method = editSlug !== "" ? "PUT" : "POST";
+                let method = "POST";
+                if (editSlug !== "") {
+                    // Only use PUT if the organisation did NOT change
+                    if (normalizePrevious === orgSlug) {
+                        method = "PUT";
+                    }
+                }
                 const detailUrl = method === "POST" ? organisationDetailPostUrl(orgSlug) : organisationDetailPostUrl(orgSlug, templateTop.slug);
 
                 // Prefix slug with organisation ID as required by the API
@@ -2892,7 +2888,14 @@ var addStory = (async function () {
         if (path == "tags") {
             try {
                 const pathSlug = (type !== "default" && templateTop.slug) ? templateTop.slug : normalizeDetailPathSegment(templateTop.slug);
-                const method = editSlug !== "" ? "PUT" : "POST";
+                let method = "POST";
+                if (editSlug !== "") {
+                    // Only use PUT if the tag was already present (i.e. not a newly added tag)
+                    const oldTags = (previousTags || "").split(',').map(t => t.trim());
+                    if (oldTags.includes(filename.trim())) {
+                        method = "PUT";
+                    }
+                }
                 let detailUrl = method === "PUT"
                     ? `${tagDetailPostUrl(filename)}/${encodeURIComponent(pathSlug)}`
                     : tagDetailPostUrl(filename);
@@ -2910,7 +2913,7 @@ var addStory = (async function () {
             }
         }
 
-        if (path == "location" && type === "default") {
+        if (path == "location") {
             filename = $.trim(filename.toLowerCase()).replace(/ /g, "_");
             const normalizePrevious = (previousLocation || "").toLowerCase().trim().replace(/ /g, "_");
 
@@ -2942,13 +2945,23 @@ var addStory = (async function () {
                     ...buildLocationStoryPostBody(templateTop, filename),
                     slug: pathSlug
                 };
+
+                let method = "POST";
+                if (editSlug !== "") {
+                    // Only use PUT if location did NOT change, otherwise it's a new entry for this location detail URL
+                    if (normalizePrevious === filename) {
+                        method = "PUT";
+                    }
+                }
+
+                console.log(`Writing location detail via ${method} to url: ${detailUrl}`);
                 const writeResponse = await apiFetch(detailUrl, {
-                    method: editSlug !== "" ? "PUT" : "POST",
+                    method: method,
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(postBody)
                 });
                 if (!writeResponse.ok) {
-                    await logApiError(writeResponse, "location detail POST");
+                    await logApiError(writeResponse, "location detail write");
                 } else {
                     const meta = await writeResponse.json();
                     console.log("Location Detail API Response:", meta);

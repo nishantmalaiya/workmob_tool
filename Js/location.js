@@ -241,3 +241,58 @@ function validation(cb) {
     var result = { "cansave": cansave, "msg": msg, "item": item };
     cb(result);
 }
+
+//#region Search Location
+$("#btnSearch").click(function () {
+    SearchOnLocation();
+});
+$("#btnClearSearch").click(function () {
+    ClearSearchOnLocation();
+});
+$('#txtSearchLocation').on('keyup', function () {
+    const query = $('#txtSearchLocation').val().trim();
+    if (query.length >= 4) {
+        SearchOnLocation();
+    }
+});
+
+async function SearchOnLocation() {
+    let query = $('#txtSearchLocation').val().trim().toLowerCase();
+    let filtered = [];
+    if (query) {
+        filtered = allRecords.filter(function (r) {
+            const loc = (r.location || "").toLowerCase();
+            const id = (r.id || "").toLowerCase();
+            return loc.includes(query) || id.includes(query);
+        });
+    } else {
+        filtered = allRecords;
+    }
+
+    let header = `
+        <div class="storycardheader col-md-12 row">
+            <div class="col-md-7"><h4>Location</h4></div>
+            <div class="col-md-2"></div>
+            <div class="col-md-3"></div>
+            <hr>
+        </div>`;
+    $('#divStory').html(header);
+
+    renderData(filtered);
+}
+
+async function ClearSearchOnLocation() {
+    $('#txtSearchLocation').val('');
+    
+    let header = `
+        <div class="storycardheader col-md-12 row">
+            <div class="col-md-7"><h4>Location</h4></div>
+            <div class="col-md-2"></div>
+            <div class="col-md-3"></div>
+            <hr>
+        </div>`;
+    $('#divStory').html(header);
+
+    renderData(allRecords);
+}
+//#endregion

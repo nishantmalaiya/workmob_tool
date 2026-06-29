@@ -21,9 +21,11 @@ categorymasterList();
 $(window).on("scroll", function () {
     if (scrollTimeout) clearTimeout(scrollTimeout);
     scrollTimeout = setTimeout(() => {
-        if ($(window).scrollTop() + $(window).height() >= $(document).height() - 100) {
-            if (!isFetching && hasMore) {
-                loadMoreCategories();
+        if ($('#txtSearchCategory').val().trim() === "") {
+            if ($(window).scrollTop() + $(window).height() >= $(document).height() - 100) {
+                if (!isFetching && hasMore) {
+                    loadMoreCategories();
+                }
             }
         }
     }, 200);
@@ -533,3 +535,61 @@ function validation(cb) {
     var result = { "cansave": cansave, "msg": msg };
     cb(result);
 }
+
+//#region Search Category
+$("#btnSearch").click(function () {
+    SearchOnCategory();
+});
+$("#btnClearSearch").click(function () {
+    ClearSearchOnCategory();
+});
+$('#txtSearchCategory').on('keyup', function () {
+    const query = $('#txtSearchCategory').val().trim();
+    if (query.length >= 4) {
+        SearchOnCategory();
+    }
+});
+
+async function SearchOnCategory() {
+    let query = $('#txtSearchCategory').val().trim().toLowerCase();
+    let filtered = [];
+    if (query) {
+        filtered = allCategories.filter(function (c) {
+            const cat = (c.category || "").toLowerCase();
+            const title = (c.title || "").toLowerCase();
+            const titleHindi = (c.title_hindi || "").toLowerCase();
+            return cat.includes(query) || title.includes(query) || titleHindi.includes(query);
+        });
+    } else {
+        filtered = allCategories;
+    }
+
+    var storyCard = "";
+    storyCard = "<div class=\"storycardheader col-md-12 row\">";
+    storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title</h4></div>";
+    storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title Hindi</h4></div>";
+    storyCard = storyCard + "<div class=\"col-md-4\"><h4>Category</h4></div>";
+    storyCard = storyCard + "<div class=\"col-md-1\"></div>";
+    storyCard = storyCard + "<div class=\"col-md-1\"></div>";
+    storyCard = storyCard + "<hr></div>";
+    $('#divStory').html(storyCard);
+
+    await RenderStory(filtered);
+}
+
+async function ClearSearchOnCategory() {
+    $('#txtSearchCategory').val('');
+    
+    var storyCard = "";
+    storyCard = "<div class=\"storycardheader col-md-12 row\">";
+    storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title</h4></div>";
+    storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title Hindi</h4></div>";
+    storyCard = storyCard + "<div class=\"col-md-4\"><h4>Category</h4></div>";
+    storyCard = storyCard + "<div class=\"col-md-1\"></div>";
+    storyCard = storyCard + "<div class=\"col-md-1\"></div>";
+    storyCard = storyCard + "<hr></div>";
+    $('#divStory').html(storyCard);
+
+    await RenderStory(allCategories);
+}
+//#endregion
