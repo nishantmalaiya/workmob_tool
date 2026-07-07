@@ -2623,13 +2623,7 @@ var addStory = (async function () {
     };
 
     let deleteFromCategory = async (slug, category) => {
-        // const url = type !== "default"
-        //     ? `${CATEGORIES_API_BASE}?category=${encodeURIComponent(category)}&slug=${encodeURIComponent(slug)}`
-        //     : `${CATEGORIES_API_BASE}/${category}`;
-
-         const url = type !== "default"
-            ? `${CATEGORIES_API_BASE}/${encodeURIComponent(category)}/${encodeURIComponent(slug)}`
-            : `${CATEGORIES_API_BASE}/${category}`;
+        const url = `${CATEGORIES_API_BASE}/${encodeURIComponent(category)}/${encodeURIComponent(slug)}`;
         try {
             const response = await apiFetch(url, {
                 method: "DELETE",
