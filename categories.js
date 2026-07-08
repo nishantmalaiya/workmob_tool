@@ -211,8 +211,8 @@ async function deleteStory(slug) {
         
         let detailSegment = (activePathS3["category-index"] || activePathS3["category"] || "categories").replace(/\//g, "").replace(".json", "");
         
-        const url = `${common.API_BASE_URL}/${detailSegment}/${encodeURIComponent(category)}/${encodeURIComponent(slug)}`;
-
+       // const url = `${common.API_BASE_URL}/${detailSegment}/${encodeURIComponent(category)}/${encodeURIComponent(slug)}`;
+const url = `${common.API_BASE_URL}/${detailSegment}/${encodeURIComponent(category)}`;
         try {
             const response = await fetch(url, {
                 method: "DELETE",
