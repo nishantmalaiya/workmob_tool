@@ -1184,49 +1184,56 @@ var addStory = (async function () {
     });
 
     async function saveTags_Master(templateTop) {
-        var tagDataMaster = [];
-        try {
-            const response = await apiFetch(MASTER_TAG_API_BASE);
-            const result = await response.json();
-            tagDataMaster = result.data || result.master_tags || result || [];
-        } catch (error) {
-            console.error("Error reading master tags via API:", error);
+        if (!templateTop.tags) return;
+
+        const tagsEn = templateTop.tags.split(',').map(t => t.trim());
+        const tagsHi = (templateTop.tags_hindi || "").split(',').map(t => t.trim());
+        const newTags = [];
+
+        for (let index = 0; index < tagsEn.length; index++) {
+            const tagEn = tagsEn[index];
+            const tagSlug = slugify(tagEn);
+            if (!tagSlug) continue;
+
+            let exists = false;
+            try {
+                const checkUrl = `${MASTER_TAG_API_BASE}?slug=${encodeURIComponent(tagSlug)}`;
+                const response = await apiFetch(checkUrl);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result && result.data && (result.data.tag === tagSlug || result.data.id === tagSlug)) {
+                        exists = true;
+                    }
+                }
+            } catch (error) {
+                console.error(`Error checking tag "${tagSlug}" via API:`, error);
+            }
+
+            if (!exists) {
+                newTags.push({
+                    tag: tagSlug,
+                    title: tagEn,
+                    tag_hindi: tagsHi[index] || ""
+                });
+            }
         }
 
-        if (templateTop.tags) {
-            const existingTags = new Set(tagDataMaster.map(entry => entry.tag));
-            const tagsEn = templateTop.tags.split(',').map(t => t.trim());
-            const tagsHi = (templateTop.tags_hindi || "").split(',').map(t => t.trim());
-
-            const newTags = [];
-            tagsEn.forEach((tagEn, index) => {
-                const tagSlug = slugify(tagEn);
-                if (tagSlug && !existingTags.has(tagSlug)) {
-                    newTags.push({
-                        tag: tagSlug,
-                        title: tagEn,
-                        tag_hindi: tagsHi[index] || ""
-                    });
-                }
-            });
-
-            if (newTags.length > 0) {
-                try {
-                    const response = await apiFetch(MASTER_TAG_API_BASE, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(newTags),
-                    });
-                    const meta = await response.json();
-                    console.log("Master Tag API Response (POST):", meta);
-                } catch (error) {
-                    console.error("Error writing master tags via API:", error);
-                }
-            } else {
-                console.log("No new tags to add.");
+        if (newTags.length > 0) {
+            try {
+                const response = await apiFetch(MASTER_TAG_API_BASE, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(newTags),
+                });
+                const meta = await response.json();
+                console.log("Master Tag API Response (POST):", meta);
+            } catch (error) {
+                console.error("Error writing master tags via API:", error);
             }
+        } else {
+            console.log("No new tags to add.");
         }
     }
 
