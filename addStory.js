@@ -14,7 +14,7 @@ let activePathS3 = common.getS3Path();
 var type = remote.getGlobal("sharedObj").currentStory;
 
 /** Set to false before release — fills add-story popup with dummy data for local testing */
-const TEST_PREFILL_STORY = true;
+const TEST_PREFILL_STORY = false;
 let editSlug = "";
 let editItemId = "";
 

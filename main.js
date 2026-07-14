@@ -164,7 +164,7 @@ app.on("ready", function () {
         });
 
         child.once("ready-to-show", () => {
-            child.webContents.toggleDevTools();
+            // child.webContents.toggleDevTools();
         });
         // Fire after document + scripts load so ipcRenderer.on("receiveSlug") is registered.
         child.webContents.once("did-finish-load", () => {
