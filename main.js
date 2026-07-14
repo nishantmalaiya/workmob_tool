@@ -137,6 +137,7 @@ app.on("ready", function () {
             webPreferences: {
                 nodeIntegration: true,
                 contextIsolation: false,
+                devTools: false,
             },
         });
         remoteMain.enable(child.webContents);
