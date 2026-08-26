@@ -384,6 +384,17 @@ var addStory = (async function () {
                     }
                 }
             }, 1000);
+            var orgIndexIntv = setInterval(function () {
+                if ($("#divJson").find('[name="org_index"]').length === 0) {
+                    var $userGuid = $("#divJson").find('[name="user_guid"]');
+                    if ($userGuid.length > 0) {
+                        $userGuid.after('<div class="form-group"><label>Org index</label><input id="txt_org_index" name="org_index" type="text" class="form-control"></div>');
+                    } else {
+                        $("#divJson").append('<div class="form-group"><label>Org index</label><input id="txt_org_index" name="org_index" type="text" class="form-control"></div>');
+                    }
+                    clearInterval(orgIndexIntv);
+                }
+            }, 500);
         } else {
             $("#hname").html("Update Story");
             $("#btnSave").html("Update Story");
@@ -396,6 +407,19 @@ var addStory = (async function () {
                     clearInterval(intv);
                 }
             }, 1000);
+        }
+        // Also ensure org_index input exists for edit mode
+        if (editSlug !== "") {
+            setTimeout(function () {
+                if ($("#divJson").find('[name="org_index"]').length === 0) {
+                    var $userGuid = $("#divJson").find('[name="user_guid"]');
+                    if ($userGuid.length > 0) {
+                        $userGuid.after('<div class="form-group"><label>Org index</label><input id="txt_org_index" name="org_index" type="text" class="form-control"></div>');
+                    } else {
+                        $("#divJson").append('<div class="form-group"><label>Org index</label><input id="txt_org_index" name="org_index" type="text" class="form-control"></div>');
+                    }
+                }
+            }, 100);
         }
     });
 
