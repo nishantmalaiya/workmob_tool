@@ -13,6 +13,9 @@ let catLoading = false;
 let catLastLoadTime = 0;
 GetCategoriesList();
 
+var type = remote.getGlobal("sharedObj").currentStory;
+console.log("type",type)
+
 document.addEventListener('scroll', function (e) {
     var el = e.target;
     if (!el || !el.matches) return;
@@ -132,6 +135,8 @@ $('#ddlCategory').on('change', function () {
         let url = `${common.API_BASE_URL}/${detailSegment}/${$(this).val()}`;
         if (typeof lastEvaluatedKey !== 'undefined' && lastEvaluatedKey) {
             url += "?lastEvaluatedKey=" + encodeURIComponent(JSON.stringify(lastEvaluatedKey));
+        } else {
+            url += "?limit=50";
         }
 
         fetch(url)
@@ -212,7 +217,7 @@ async function deleteStory(slug) {
         let detailSegment = (activePathS3["category-index"] || activePathS3["category"] || "categories").replace(/\//g, "").replace(".json", "");
         
        // const url = `${common.API_BASE_URL}/${detailSegment}/${encodeURIComponent(category)}/${encodeURIComponent(slug)}`;
-const url = `${common.API_BASE_URL}/${detailSegment}/${encodeURIComponent(category)}`;
+const url = `${common.API_BASE_URL}/${detailSegment}/${encodeURIComponent(category)}/${encodeURIComponent(slug)}`;
         try {
             const response = await fetch(url, {
                 method: "DELETE",

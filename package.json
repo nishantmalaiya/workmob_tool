@@ -5,12 +5,12 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build:win": "electron-builder --win",
-    "build:win:dir": "electron-builder --win --dir",
+    "build:win": "node scripts/build-with-timestamp.js --win",
+    "build:win:dir": "node scripts/build-with-timestamp.js --win --dir",
     "package-mac": "electron-packager . --overwrite --platform=darwin --arch=x64 --icon=assets/mac/icon.icns --prune=true --out=release-builds",
     "package-win": "electron-packager . WorkmobJson --overwrite --asar=true --platform=win32 --arch=x64 --icon=images/Wlogo.png --prune=true --out=release-builds --version-string.CompanyName=CE --version-string.FileDescription=CE --version-string.ProductName=\"WorkmobJson\"",
     "package-linux": "electron-packager . WorkmobJson --overwrite --asar=true --platform=linux --arch=x64 --icon=assets/png/icon.png --prune=true --out=release-builds",
-    "dist": "electron-builder"
+    "dist": "node scripts/build-with-timestamp.js"
   },
   "author": "Nishant Malaiya",
   "license": "MIT",
@@ -34,7 +34,8 @@
     "asar": true,
     "win": {
       "target": "nsis",
-      "icon": "images/Wlogo.png"
+      "icon": "images/Wlogo.png",
+      "artifactName": "${productName} Setup ${version}-${env.BUILD_TIMESTAMP}.${ext}"
     },
     "nsis": {
       "oneClick": false,

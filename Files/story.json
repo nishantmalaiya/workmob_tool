@@ -330,6 +330,12 @@
     "label": "Organisation"
   },
   {
+    "name": "org_index",
+    "class": "col-md-6",
+    "type": "number",
+    "label": "Org index"
+  },
+  {
     "name": "facebook",
     "class": "col-md-6",
     "type": "text",

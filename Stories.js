@@ -288,7 +288,8 @@ function fetchAndRenderRecords(categoryValue, offset, limit) {
   let endpoint = (activePathS3["category-index"] || "category/").replace(/\//g, "");
   //if (!endpoint.endsWith('s')) endpoint += 's';
 
-  const url = `${common.API_BASE_URL}/${endpoint}/${categoryValue}`;
+  const params = (offset === 0 && type === "default") ? "?limit=50" : "";
+  const url = `${common.API_BASE_URL}/${endpoint}/${categoryValue}${params}`;
   fetch(url)
     .then(response => {
       if (!response.ok) {

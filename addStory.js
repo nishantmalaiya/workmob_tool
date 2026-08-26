@@ -51,6 +51,7 @@ function prefillStoryTestData() {
         if ($("#ddl_organisation")[0] && $("#ddl_organisation")[0].selectize) {
             $("#ddl_organisation")[0].selectize.setValue("noorganisation");
         }
+        $("#divJson").find('[name="org_index"]').val("1");
 
         // Master category
         if ($("#ddl_ddlcategory").length > 0) {
@@ -384,12 +385,12 @@ var addStory = (async function () {
                 }
             }, 1000);
         } else {
+            $("#hname").html("Update Story");
+            $("#btnSave").html("Update Story");
+            $("#btndelete").show();
             var intv = setInterval(function () {
                 if ($("#divJson").find('[name="slug"]').length == 1) {
                     ReadSlug(arg.slug);
-                    $("#hname").html("Update Story");
-                    $("#btnSave").html("Update Story");
-                    $("#btndelete").show();
                     CheckSlugStory(arg.slug);
                     $("#divJson").find('[name="slug"]').attr("disabled", "disabled");
                     clearInterval(intv);
@@ -781,13 +782,15 @@ var addStory = (async function () {
             if (object.type != "checkbox" && object.type != "hr") {
                 element.push("<label>" + object.label + "</label>");
             }
-            if (object.type == "text") {
+            if (object.type == "text" || object.type == "number") {
                 element.push(
                     '<input id="txt_' +
                     object.name +
                     '" name="' +
                     object.name +
-                    '" type="text" value="" class="form-control">'
+                    '" type="' +
+                    object.type +
+                    '" value="" class="form-control">'
                 );
             } else if (object.type == "select") {
                 element.push(
@@ -890,6 +893,8 @@ var addStory = (async function () {
                 $("#divJson").find('[name="' + key + '"]').val()
             );
         }
+        var orgIndexVal = $.trim($("#divJson").find('[name="org_index"]').val());
+        GenerateStory["org_index"] = (orgIndexVal !== "" && !isNaN(Number(orgIndexVal))) ? Number(orgIndexVal) : 0;
         var fullStory = GetFullStory($("#divExtraField"));
         GenerateStory["fullStory"] = fullStory;
         GenerateStory["itemId"] = editItemId;
@@ -1186,7 +1191,7 @@ var addStory = (async function () {
     async function saveTags_Master(templateTop) {
         var tagDataMaster = [];
         try {
-            const response = await apiFetch(MASTER_TAG_API_BASE);
+            const response = await apiFetch(`${MASTER_TAG_API_BASE}?limit=10`);
             const result = await response.json();
             tagDataMaster = result.data || result.master_tags || result || [];
         } catch (error) {
@@ -1293,6 +1298,13 @@ var addStory = (async function () {
             result["cansave"] = false;
             result["msg"] = "Please enter valid userid";
             $("#txt_workmobUserId").focus();
+        }
+        var orgIndexInput = $("#txt_org_index").length ? $("#txt_org_index") : $("#divJson").find('[name="org_index"]');
+        if (orgIndexInput.length && $.trim(orgIndexInput.val()) !== "" && isNaN($.trim(orgIndexInput.val()))) {
+            orgIndexInput.addClass("error");
+            result["cansave"] = false;
+            result["msg"] = "Please enter valid number for Org index";
+            orgIndexInput.focus();
         }
         var txtboxSlug = $('input[name="slug"]');
         var slug = $(txtboxSlug).val();
@@ -1726,9 +1738,19 @@ var addStory = (async function () {
             method: "GET",
             success: function (data) {
                 try {
-                    // Assuming data is already a parsed JSON object from the API.
-                    // If it's a string, uncomment the next line: var JSON_Obj = JSON.parse(data);
                     var JSON_Obj = data;
+                    if (typeof JSON_Obj === "string") {
+                        try {
+                            JSON_Obj = JSON.parse(JSON_Obj);
+                        } catch (err) {}
+                    }
+                    if (JSON_Obj && JSON_Obj.data && !Array.isArray(JSON_Obj.data)) {
+                        JSON_Obj = JSON_Obj.data;
+                    } else if (JSON_Obj && JSON_Obj.story) {
+                        JSON_Obj = JSON_Obj.story;
+                    } else if (Array.isArray(JSON_Obj)) {
+                        JSON_Obj = JSON_Obj[0];
+                    }
                     editItemId = JSON_Obj.itemId || "";
 
                     var ignoreItem = ["fullStory", "fullStory_hindi", "master_categories"];
@@ -1754,6 +1776,12 @@ var addStory = (async function () {
                                 GetOrganisationList();
                             }
                         }
+                    }
+
+                    if (JSON_Obj["org_index"] !== undefined && JSON_Obj["org_index"] !== null) {
+                        $("#divJson").find('[name="org_index"]').val(JSON_Obj["org_index"]);
+                    } else if (JSON_Obj["orgIndex"] !== undefined && JSON_Obj["orgIndex"] !== null) {
+                        $("#divJson").find('[name="org_index"]').val(JSON_Obj["orgIndex"]);
                     }
 
                     // Handle categories
@@ -2854,7 +2882,8 @@ var addStory = (async function () {
                 const organisationBody = {
                     ...templateTop,
                     id: orgSlug,
-                    slug: templateTop.slug
+                    slug: templateTop.slug,
+                    org_index: (templateTop["org_index"] !== undefined && templateTop["org_index"] !== "" && !isNaN(Number(templateTop["org_index"]))) ? Number(templateTop["org_index"]) : 0
                 };
 
                 const response = await apiFetch(detailUrl, {
