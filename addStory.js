@@ -13,10 +13,141 @@ let common = require("./Js/config");
 let activePathS3 = common.getS3Path();
 var type = remote.getGlobal("sharedObj").currentStory;
 
-/** Set to false before release — fills add-story popup with dummy data for local testing */
+/** Set to true to show debug tools and prefill dummy data for testing */
 const TEST_PREFILL_STORY = true;
 let editSlug = "";
 let editItemId = "";
+
+// Automatically open DevTools in debug mode (detached window for modal dialogs)
+try {
+    const currentWin = remote.getCurrentWindow();
+    if (currentWin && currentWin.webContents) {
+        currentWin.webContents.openDevTools({ mode: "detach" });
+    }
+} catch (e) {
+    console.warn("Could not automatically open DevTools:", e);
+}
+
+// Global keyboard shortcut to toggle DevTools (F12 or Ctrl+Shift+I)
+window.addEventListener("keydown", function (e) {
+    if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "i"))) {
+        try {
+            const win = remote.getCurrentWindow();
+            if (win && win.webContents) {
+                if (win.webContents.isDevToolsOpened()) {
+                    win.webContents.closeDevTools();
+                } else {
+                    win.webContents.openDevTools({ mode: "detach" });
+                }
+            }
+        } catch (err) {
+            console.error("Error toggling DevTools:", err);
+        }
+    }
+});
+
+function renderDebugBar() {
+    if ($("#debugOptionsBar").length > 0) return;
+    const debugHtml = `
+        <div id="debugOptionsBar" class="col-md-12" style="margin-bottom: 15px; margin-top: 10px;">
+            <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; gap: 8px; color: #f8fafc; font-size: 13px; font-weight: 600;">
+                    <span class="glyphicon glyphicon-wrench" style="color: #38bdf8;"></span>
+                    <span>Debug Options</span>
+                    <span style="background: #0284c7; color: white; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 700;">ACTIVE</span>
+                </div>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <button type="button" id="btnDebugDevTools" class="btn btn-xs btn-primary" style="font-weight: 600;">
+                        <span class="glyphicon glyphicon-console"></span> Toggle DevTools
+                    </button>
+                    <button type="button" id="btnDebugPrefill" class="btn btn-xs btn-warning" style="font-weight: 600;">
+                        <span class="glyphicon glyphicon-pencil"></span> Prefill Test Data
+                    </button>
+                    <button type="button" id="btnDebugLogPayload" class="btn btn-xs btn-info" style="font-weight: 600;">
+                        <span class="glyphicon glyphicon-list-alt"></span> Log Form JSON
+                    </button>
+                    <button type="button" id="btnDebugClear" class="btn btn-xs btn-danger" style="font-weight: 600;">
+                        <span class="glyphicon glyphicon-trash"></span> Clear Inputs
+                    </button>
+                    <button type="button" id="btnDebugReload" class="btn btn-xs btn-default" style="font-weight: 600;">
+                        <span class="glyphicon glyphicon-refresh"></span> Reload
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    $("#content").prepend(debugHtml);
+
+    $("#btnDebugDevTools").on("click", function (e) {
+        e.preventDefault();
+        try {
+            const win = remote.getCurrentWindow();
+            if (win && win.webContents) {
+                if (win.webContents.isDevToolsOpened()) {
+                    win.webContents.closeDevTools();
+                } else {
+                    win.webContents.openDevTools({ mode: "detach" });
+                }
+            }
+        } catch (err) {
+            console.error("Error toggling DevTools:", err);
+            alert("Error toggling DevTools: " + err.message);
+        }
+    });
+
+    $("#btnDebugPrefill").on("click", function (e) {
+        e.preventDefault();
+        prefillStoryTestData();
+    });
+
+    $("#btnDebugLogPayload").on("click", function (e) {
+        e.preventDefault();
+        console.group("=== [DEBUG] Story Form State ===");
+        console.log("editSlug:", editSlug);
+        console.log("editItemId:", editItemId);
+        console.log("masterCategory:", typeof masterCategory !== 'undefined' ? masterCategory : 'N/A');
+        console.log("type:", type);
+        console.log("API_BASE_URL:", API_BASE_URL);
+        console.log("activePathS3:", activePathS3);
+        const formValues = {};
+        $("#divJson input, #divJson select, #divJson textarea").each(function () {
+            const name = $(this).attr("name");
+            if (name) formValues[name] = $(this).val();
+        });
+        console.log("Form Values:", formValues);
+        console.groupEnd();
+        alert("Story debug state logged to Console (F12 or click 'Toggle DevTools' to inspect).");
+    });
+
+    $("#btnDebugClear").on("click", function (e) {
+        e.preventDefault();
+        if (confirm("Clear all story inputs in form?")) {
+            $("#divJson input:not([disabled]), #divJson textarea").val("");
+            $("#divJson").find('[name="index_order"]').val("0");
+            $("#divJson").find('[name="org_index"]').val("0");
+            if ($("#ddl_instructor")[0] && $("#ddl_instructor")[0].selectize) {
+                $("#ddl_instructor")[0].selectize.clear();
+            }
+            if ($("#ddl_location")[0] && $("#ddl_location")[0].selectize) {
+                $("#ddl_location")[0].selectize.clear();
+            }
+            if ($("#ddl_organisation").length > 0 && typeof $("#ddl_organisation").multipleSelect === "function") {
+                $("#ddl_organisation").multipleSelect("setSelects", []);
+            } else if ($("#ddl_organisation")[0] && $("#ddl_organisation")[0].selectize) {
+                $("#ddl_organisation")[0].selectize.clear();
+            }
+        }
+    });
+
+    $("#btnDebugReload").on("click", function (e) {
+        e.preventDefault();
+        remote.getCurrentWindow().reload();
+    });
+}
+
+$(document).ready(function () {
+    renderDebugBar();
+});
 
 function prefillStoryTestData() {
     console.log("Prefilling testing data for story...");
@@ -40,6 +171,8 @@ function prefillStoryTestData() {
         $("#divJson").find('[name="workmobUserId"]').val("12345");
         $("#divJson").find('[name="workmobUserName"]').val("testuser");
         $("#divJson").find('[name="user_guid"]').val("test-user-guid-" + uniqueId + "-123456789");
+        $("#divJson").find('[name="instagram_social_landscape"]').val("https://instagram.com/p/testlandscape" + uniqueId);
+        $("#divJson").find('[name="index_order"]').val("0");
 
         // Selectize fields (Location, Organisation, Instructor)
         if ($("#ddl_instructor")[0] && $("#ddl_instructor")[0].selectize) {
@@ -48,7 +181,12 @@ function prefillStoryTestData() {
         if ($("#ddl_location")[0] && $("#ddl_location")[0].selectize) {
             $("#ddl_location")[0].selectize.setValue("nolocation");
         }
-        if ($("#ddl_organisation")[0] && $("#ddl_organisation")[0].selectize) {
+        if ($("#ddl_organisation").length > 0 && typeof $("#ddl_organisation").multipleSelect === "function") {
+            var firstOrg = $("#ddl_organisation option:first").val();
+            if (firstOrg) {
+                $("#ddl_organisation").multipleSelect("setSelects", [firstOrg]);
+            }
+        } else if ($("#ddl_organisation")[0] && $("#ddl_organisation")[0].selectize) {
             $("#ddl_organisation")[0].selectize.setValue("noorganisation");
         }
         $("#divJson").find('[name="org_index"]').val("1");
@@ -80,7 +218,9 @@ const STORIES_API_ALLOWED_KEYS = [
     "location", "industry", "slug", "priority", "isFullstoryAdded",
     "name", "landmark", "date", "streetAddress", "instructor",
     "workmobUserName", "category", "workmobUserId", "webpthumb",
-    "thumb", "hide", "tags", "storyHeading"
+    "thumb", "hide", "tags", "storyHeading",
+    "instagram_social_landscape", "index_order",
+    "organisation", "org_index"
 ];
 
 const getEndpoint = (key) => {
@@ -106,6 +246,38 @@ const LOCATIONS_API_BASE = (() => {
 const LOCATIONS_MASTER_API_BASE = `${API_BASE_URL}/locations`;
 const ORGANISATIONS_API_BASE = `${API_BASE_URL}/organisation`;
 const ORGANISATION_MASTER_API_BASE = `${API_BASE_URL}/organisation_master`;
+let _organisationMasterList = [];
+let _orgNameToIdMap = {};
+
+function resolveOrganisationId(orgInput) {
+    if (!orgInput) return "";
+    const clean = String(orgInput).trim();
+    if (!clean || clean.toLowerCase() === "noorganisation") return "";
+    
+    const lower = clean.toLowerCase();
+    const withUnderscores = lower.replace(/ /g, "_");
+
+    if (typeof _orgNameToIdMap !== "undefined" && _orgNameToIdMap) {
+        if (_orgNameToIdMap[lower]) return _orgNameToIdMap[lower];
+        if (_orgNameToIdMap[withUnderscores]) return _orgNameToIdMap[withUnderscores];
+    }
+
+    if (typeof _organisationMasterList !== "undefined" && Array.isArray(_organisationMasterList) && _organisationMasterList.length > 0) {
+        const found = _organisationMasterList.find(o => 
+            (o.id && o.id.toLowerCase() === lower) ||
+            (o.id && o.id.toLowerCase() === withUnderscores) ||
+            (o.Organisation && o.Organisation.toLowerCase().trim() === lower) ||
+            (o.Organisation && o.Organisation.toLowerCase().trim().replace(/ /g, "_") === withUnderscores)
+        );
+        if (found && found.id) {
+            return String(found.id).trim();
+        }
+    }
+
+    return withUnderscores;
+}
+
+
 const MASTER_TAG_API_BASE = `${API_BASE_URL}/master_tag`;
 const STORY_DETAIL_API_BASE = `${API_BASE_URL}/${(activePathS3["story-detail"] || "stories").replace(/\//g, "").replace(".json", "")}`;
 const TAG_DETAIL_API_BASE = `${API_BASE_URL}/tag_detail`;
@@ -150,7 +322,7 @@ function tagDetailPostUrl(tagSlug, detailSlug) {
  * Organisation detail URL: /organisation_master/{orgId}/{detailSlug}
  */
 function organisationDetailPostUrl(orgSlug, detailSlug) {
-    const id = String(orgSlug || "").trim().toLowerCase().replace(/ /g, "_");
+    const id = resolveOrganisationId(orgSlug);
     const base = `${ORGANISATION_MASTER_API_BASE}/${encodeURIComponent(id)}`;
     if (detailSlug != null && String(detailSlug).trim() !== "") {
         return `${base}/${encodeURIComponent(normalizeDetailPathSegment(detailSlug))}`;
@@ -366,7 +538,7 @@ $("#divExtraFieldHindi").hide();
 var addStory = (async function () {
 
     ipcRenderer.on("receiveSlug", async (event, arg) => {
-
+        renderDebugBar();
         masterCategory = arg.category;
         editSlug = arg.slug;
         RenderFields("story");
@@ -379,6 +551,9 @@ var addStory = (async function () {
                 if ($("#divJson").find('[name="slug"]').length == 1) {
                     CheckSlugStory(arg.slug);
                     clearInterval(intv);
+                    if (!$("#divJson").find('[name="index_order"]').val()) {
+                        $("#divJson").find('[name="index_order"]').val("0");
+                    }
                     if (typeof TEST_PREFILL_STORY !== 'undefined' && TEST_PREFILL_STORY) {
                         prefillStoryTestData();
                     }
@@ -728,34 +903,40 @@ var addStory = (async function () {
         try {
             const response = await apiFetch(ORGANISATION_MASTER_API_BASE);
             const responseData = await response.json();
-            const JSON_Obj = responseData.data;
+            const JSON_Obj = responseData.data || [];
+            _organisationMasterList = JSON_Obj;
 
+            _orgNameToIdMap = {};
             var element = [];
-            element.push('<option value="NoOrganisation">No Organisation</option>');
             for (var i = 0; i < JSON_Obj.length; i++) {
                 var org = JSON_Obj[i];
-                var orgId = org.id || org.Id || org.Organisation.toLowerCase().replace(/ /g, "_");
-                element.push('<option value="' + orgId + '">' + org.Organisation + " </option>");
+                var orgId = org.id ? String(org.id).trim() : org.Organisation.toLowerCase().trim().replace(/ /g, "_");
+                var orgName = org.Organisation ? String(org.Organisation).trim() : orgId;
+                _orgNameToIdMap[orgId.toLowerCase()] = orgId;
+                _orgNameToIdMap[orgName.toLowerCase()] = orgId;
+                _orgNameToIdMap[orgName.toLowerCase().replace(/ /g, "_")] = orgId;
+                element.push('<option value="' + orgId + '">' + orgName + " </option>");
             }
             $("#divJson #ddl_organisation").html(element.join(" "));
-            var $select = $("#divJson #ddl_organisation").selectize({
-                sortField: 'text',
-                maxOptions: 100000,
-                placeholder: "Select Organisation"
+            $("#divJson #ddl_organisation").attr("multiple", "multiple");
+            $("#divJson #ddl_organisation").addClass("multiple-select");
+            $("#divJson #ddl_organisation").multipleSelect({
+                filter: true,
+                width: "100%",
+                placeholder: "Select Organisation",
             });
-            var selectize = $select[0].selectize;
 
-            if (tmpOrganisation && tmpOrganisation !== "NoOrganisation" && !selectize.options[tmpOrganisation]) {
-                // Try to find if it's a name and we need the ID
-                let foundId = Object.keys(selectize.options).find(key => selectize.options[key].text.toLowerCase() === tmpOrganisation.toLowerCase());
-                if (foundId) {
-                    selectize.setValue(foundId);
-                } else {
-                    selectize.addOption({ value: tmpOrganisation, text: tmpOrganisation });
-                    selectize.setValue(tmpOrganisation);
-                }
-            } else {
-                selectize.setValue(tmpOrganisation || "NoOrganisation");
+            var rawOrgs = [];
+            if (Array.isArray(tmpOrganisation)) {
+                rawOrgs = tmpOrganisation;
+            } else if (typeof tmpOrganisation === "string" && tmpOrganisation.trim() !== "" && tmpOrganisation !== "NoOrganisation") {
+                rawOrgs = tmpOrganisation.split(",");
+            }
+            var selectedOrgIds = rawOrgs.map(resolveOrganisationId).filter(Boolean);
+            if (selectedOrgIds.length > 0) {
+                $("#divJson #ddl_organisation").val(selectedOrgIds);
+                $("#divJson #ddl_organisation").multipleSelect("refresh");
+                previousOrganisation = [...selectedOrgIds];
             }
         } catch (error) {
             console.log("Error fetching organisations:", error);
@@ -807,6 +988,7 @@ var addStory = (async function () {
                 element.push("<label>" + object.label + "</label>");
             }
             if (object.type == "text" || object.type == "number") {
+                var defaultVal = (object.name === "index_order" || object.name === "org_index") ? "0" : "";
                 element.push(
                     '<input id="txt_' +
                     object.name +
@@ -814,7 +996,9 @@ var addStory = (async function () {
                     object.name +
                     '" type="' +
                     object.type +
-                    '" value="" class="form-control">'
+                    '" value="' +
+                    defaultVal +
+                    '" class="form-control">'
                 );
             } else if (object.type == "select") {
                 element.push(
@@ -835,7 +1019,7 @@ var addStory = (async function () {
                 );
                 element.push("</label>");
             } else if (object.type == "hr") {
-                element.push('<hr class="col-md=12">');
+                element.push('<hr class="col-md-12">');
             }
             if (object.button != null) {
                 element.push(
@@ -849,9 +1033,72 @@ var addStory = (async function () {
         }
         return ControlsList;
     }
-    $(".btnAdd").on("click", function () {
-        AddField($(this).text(), "");
+    $(".btnAdd").on("click", function (e) {
+        e.preventDefault();
+        var fieldType = $(this).attr("data-type") || $(this).text().trim();
+        AddField(fieldType, "");
         return false;
+    });
+
+    $("#divExtraField, #divExtraFieldHindi").on("click focus", ".customeEditor", function () {
+        if ($(this).attr("contenteditable") !== "true") {
+            $(this).attr("contenteditable", "true");
+        }
+    });
+
+    // Handle Ctrl+V / Paste inside customeEditor: strip black backgrounds and foreign HTML styles
+    $("#divExtraField, #divExtraFieldHindi").on("paste", ".customeEditor", function (e) {
+        e.preventDefault();
+        var clipboardData = (e.originalEvent || e).clipboardData;
+        var text = "";
+        if (clipboardData) {
+            text = clipboardData.getData("text/plain");
+        } else if (window.clipboardData) {
+            text = window.clipboardData.getData("Text");
+        }
+
+        if (text) {
+            var inserted = false;
+            try {
+                if (document.queryCommandSupported && document.queryCommandSupported("insertText")) {
+                    inserted = document.execCommand("insertText", false, text);
+                }
+            } catch (err) {
+                inserted = false;
+            }
+
+            if (!inserted) {
+                var selection = window.getSelection();
+                if (selection && selection.rangeCount > 0) {
+                    var range = selection.getRangeAt(0);
+                    range.deleteContents();
+                    var textNode = document.createTextNode(text);
+                    range.insertNode(textNode);
+                    range.setStartAfter(textNode);
+                    range.setEndAfter(textNode);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                } else {
+                    $(this).text($(this).text() + text);
+                }
+            }
+        }
+    });
+
+    // Sanitize on input in case formatted content was inserted via drag-and-drop or other methods
+    $("#divExtraField, #divExtraFieldHindi").on("input", ".customeEditor", function () {
+        var el = this;
+        var styledDescendants = el.querySelectorAll("[style*='background']");
+        if (styledDescendants.length > 0) {
+            styledDescendants.forEach(function (node) {
+                node.style.removeProperty("background-color");
+                node.style.removeProperty("background");
+                var c = node.style.color;
+                if (c === "rgb(255, 255, 255)" || c === "#ffffff" || c === "white" || c === "rgb(212, 212, 212)") {
+                    node.style.removeProperty("color");
+                }
+            });
+        }
     });
 
     $("#divExtraField").on("click", ".btnFullStory", function () {
@@ -917,6 +1164,9 @@ var addStory = (async function () {
                 $("#divJson").find('[name="' + key + '"]').val()
             );
         }
+        var indexOrderVal = $.trim($("#divJson").find('[name="index_order"]').val());
+        GenerateStory["index_order"] = (indexOrderVal !== "" && !isNaN(Number(indexOrderVal))) ? Number(indexOrderVal) : 0;
+        GenerateStory["order"] = GenerateStory["index_order"];
         var orgIndexVal = $.trim($("#divJson").find('[name="org_index"]').val());
         GenerateStory["org_index"] = (orgIndexVal !== "" && !isNaN(Number(orgIndexVal))) ? Number(orgIndexVal) : 0;
         var fullStory = GetFullStory($("#divExtraField"));
@@ -928,6 +1178,15 @@ var addStory = (async function () {
         }
         else {
             GenerateStory["master_categories"] = $("#divJson #ddl_ddlcategory").val();
+        }
+
+        if ($('#ddl_organisation').attr('multiple') == "multiple") {
+            var orgArr = $("#divJson #ddl_organisation").val() || [];
+            var orgIds = orgArr.map(resolveOrganisationId).filter(Boolean);
+            GenerateStory["organisation"] = orgIds.join(",");
+        }
+        else {
+            GenerateStory["organisation"] = resolveOrganisationId($("#divJson #ddl_organisation").val()) || "";
         }
 
         if ($('#ddl_sub_categories').attr('multiple') == "multiple") {
@@ -969,18 +1228,17 @@ var addStory = (async function () {
             return false;
         }
         if (type === "default") {
-            if ($("#divJson #ddl_organisation").val() == null || $("#divJson #ddl_organisation").val() == "" || $("#divJson #ddl_organisation").val() == undefined) {
+            var orgVal = $("#divJson #ddl_organisation").val();
+            if (!orgVal || (Array.isArray(orgVal) && orgVal.length === 0) || orgVal === "" || orgVal === "NoOrganisation") {
                 $("body").toggleClass("loaded");
                 $("#btnSave").prop("disabled", false);
                 dialog.showErrorBox("Required field", "Please select organisation");
                 return false;
             }
-            if ($("#divJson #ddl_organisation").find('option:selected').val().toLowerCase().trim() == "vfly") {
+            var orgArr = Array.isArray(orgVal) ? orgVal : [orgVal];
+            if (orgArr.some(o => String(o).toLowerCase().trim() === "vfly")) {
                 $("body").toggleClass("loaded");
-                if (confirm("Are you sure want to VFLY as Organisation for this story!")) {
-
-                }
-                else {
+                if (!confirm("Are you sure want to select VFLY as Organisation for this story!")) {
                     $("#btnSave").prop("disabled", false);
                     return false;
                 }
@@ -997,9 +1255,14 @@ var addStory = (async function () {
             const oldInstructorStr = previousInstructor || "";
             const newInstructorStr = $("#divJson #ddl_instructor").val() || "";
 
+            const orgVal = $("#divJson #ddl_organisation").val();
+            const oldOrgStr = Array.isArray(previousOrganisation) ? previousOrganisation.filter(Boolean).sort().join(", ") : (previousOrganisation || "");
+            const newOrgStr = Array.isArray(orgVal) ? orgVal.filter(Boolean).sort().join(", ") : (orgVal || "");
+
             const isChanged = (oldCategoryStr !== newCategoryStr) || 
                               (oldLocationStr !== newLocationStr) || 
-                              (oldInstructorStr !== newInstructorStr);
+                              (oldInstructorStr !== newInstructorStr) ||
+                              (oldOrgStr !== newOrgStr);
 
             if (isChanged) {
                 const nameVal = $("#divJson").find('[name="name"]').val() || "Story";
@@ -1008,6 +1271,7 @@ var addStory = (async function () {
                 let detail = "";
                 detail += `Category: ${oldCategoryStr || "None"} → ${newCategoryStr || "None"}\n`;
                 detail += `Location: ${oldLocationStr || "None"} → ${newLocationStr || "None"}\n`;
+                detail += `Organisation: ${oldOrgStr || "None"} → ${newOrgStr || "None"}\n`;
                 detail += `Contact Number: ${oldInstructorStr || "None"} → ${newInstructorStr || "None"}\n\n`;
                 detail += "Please review the changes before proceeding.\nDo you want to save these changes?";
 
@@ -1100,6 +1364,16 @@ var addStory = (async function () {
                     const slug = GenerateStory.slug;
                     const isUpdate = editSlug !== "";
 
+                    // If updating, delete from categories that were unchecked
+                    if (isUpdate && previousCategory) {
+                        const prevCats = Array.isArray(previousCategory) ? previousCategory : [previousCategory];
+                        const removedCats = prevCats.filter(c => c && !categoriesArr.includes(c));
+                        for (const remCat of removedCats) {
+                            console.log(`Category '${remCat}' unchecked during edit. Deleting story ${slug} from category...`);
+                            await deleteFromCategory(slug, remCat);
+                        }
+                    }
+
                     for (const cat of categoriesArr) {
                         if (!cat) continue;
 
@@ -1141,6 +1415,7 @@ var addStory = (async function () {
                             console.error(`Error updating category ${cat}:`, catErr);
                         }
                     }
+                    previousCategory = [...categoriesArr];
                 }
                 for (var key in templateTop) {
                     templateTop[key] = GenerateStory[key];
@@ -1155,8 +1430,12 @@ var addStory = (async function () {
                 await saveOninstructor(templateTop);
 
                 // await saveOnSubcategory(templateTop);
-                if ($("#divJson #ddl_location").val() != "" && $("#divJson #ddl_location").val() != undefined && $("#divJson #ddl_location").val() != "NoLocation") {
-                    await saveOnTags_Location(templateTop, $("#divJson #ddl_location").val(), "location");
+                const currentLocationVal = $("#divJson #ddl_location").val();
+                if (currentLocationVal != "" && currentLocationVal != undefined && currentLocationVal != "NoLocation") {
+                    await saveOnTags_Location(templateTop, currentLocationVal, "location");
+                } else if (editSlug !== "" && previousLocation && previousLocation !== "NoLocation" && previousLocation !== "select_location") {
+                    await deleteFromLocation(templateTop.slug, previousLocation);
+                    previousLocation = "";
                 }
                 var _tags = $("#divJson").find('[name="tags"]').val();
                 if (previousTags && previousTags !== _tags) {
@@ -1186,8 +1465,8 @@ var addStory = (async function () {
                 // }
                 //Organisation
                 var _organisations = $("#divJson #ddl_organisation").val();
-                if (_organisations != "" && _organisations != undefined && _organisations != "NoOrganisation") {
-                    await saveOnOrganisation(templateTop, _organisations, "organisation");
+                if ((_organisations && _organisations.length > 0 && _organisations !== "NoOrganisation") || (editSlug !== "" && previousOrganisation && previousOrganisation.length > 0)) {
+                    await saveOnOrganisation(templateTop, _organisations || [], "organisation");
                 }
 
                 _storySaved = true;
@@ -1555,6 +1834,20 @@ var addStory = (async function () {
         }
     });
 
+    function getCleanEditorHtml($editor) {
+        if (!$editor || $editor.length === 0) return "";
+        var $clone = $editor.clone();
+        $clone.find("*").each(function () {
+            this.style.removeProperty("background-color");
+            this.style.removeProperty("background");
+            var c = this.style.color;
+            if (c === "rgb(255, 255, 255)" || c === "#ffffff" || c === "white" || c === "rgb(212, 212, 212)") {
+                this.style.removeProperty("color");
+            }
+        });
+        return $.trim($clone.html());
+    }
+
     function GetFullStory(div) {
         var strStory = [];
         $(div)
@@ -1573,39 +1866,39 @@ var addStory = (async function () {
                 switch (label) {
                     case "Heading":
                         strStory.push(
-                            "<h3>" + $.trim($editor.html()) + "</h3>"
+                            "<h3>" + getCleanEditorHtml($editor) + "</h3>"
                         );
                         break;
                     case "Paragraph":
                         strStory.push(
-                            "<p>" + $.trim($editor.html()) + "</p>"
+                            "<p>" + getCleanEditorHtml($editor) + "</p>"
                         );
                         break;
                     case "Quote":
                         strStory.push(
                             '<blockquote name="blockquote">' +
-                            $.trim($editor.html()) +
+                            getCleanEditorHtml($editor) +
                             "</blockquote>"
                         );
                         break;
                     case "Quote green":
                         strStory.push(
                             '<blockquote name="blockquote green">' +
-                            $.trim($editor.html()) +
+                            getCleanEditorHtml($editor) +
                             "</blockquote>"
                         );
                         break;
                     case "Quote dark green":
                         strStory.push(
                             '<blockquote name="blockquote darkGreen">' +
-                            $.trim($editor.html()) +
+                            getCleanEditorHtml($editor) +
                             "</blockquote>"
                         );
                         break;
                     case "Quote light green":
                         strStory.push(
                             '<blockquote name="blockquote lightGreen">' +
-                            $.trim($editor.html()) +
+                            getCleanEditorHtml($editor) +
                             "</blockquote>"
                         );
                         break;
@@ -1727,6 +2020,22 @@ var addStory = (async function () {
     //                 }
     //                 $("#divJson #ddl_ddlcategory").val(master_categories);
     //                 $("#divJson #ddl_ddlcategory").multipleSelect("refresh");
+
+                    // Handle organisations
+                    var master_organisations = [];
+                    if (JSON_Obj["organisation"] != null && JSON_Obj["organisation"] !== "" && JSON_Obj["organisation"] !== "NoOrganisation") {
+                        var rawOrgs = Array.isArray(JSON_Obj["organisation"]) ? JSON_Obj["organisation"] : String(JSON_Obj["organisation"]).split(",");
+                        master_organisations = rawOrgs.map(resolveOrganisationId).filter(Boolean);
+                        previousOrganisation = [...master_organisations];
+                    } else {
+                        previousOrganisation = [];
+                        master_organisations = [];
+                    }
+                    tmpOrganisation = master_organisations;
+                    $("#divJson #ddl_organisation").val(master_organisations);
+                    if ($("#divJson #ddl_organisation").hasClass("multiple-select")) {
+                        $("#divJson #ddl_organisation").multipleSelect("refresh");
+                    }
     //                 $("#ddlLanguage").val("English");
     //                 var fullstory = JSON_Obj["fullStory"];
     //                 var _html = $.parseHTML(fullstory);
@@ -1795,11 +2104,25 @@ var addStory = (async function () {
                                 previousLocation = JSON_Obj[key];
                                 GetLocationList();
                             } else if (key === "organisation") {
-                                tmpOrganisation = JSON_Obj[key];
-                                previousOrganisation = JSON_Obj[key];
+                                var orgRaw = JSON_Obj[key];
+                                if (orgRaw != null && orgRaw !== "" && orgRaw !== "NoOrganisation") {
+                                    var splitOrgs = Array.isArray(orgRaw) ? orgRaw : String(orgRaw).split(",");
+                                    tmpOrganisation = splitOrgs.map(s => resolveOrganisationId(s) || String(s).trim().toLowerCase().replace(/ /g, "_")).filter(Boolean);
+                                    previousOrganisation = [...tmpOrganisation];
+                                } else {
+                                    tmpOrganisation = [];
+                                    previousOrganisation = [];
+                                }
                                 GetOrganisationList();
                             }
                         }
+                    }
+                    if (JSON_Obj.index_order !== undefined && JSON_Obj.index_order !== null && JSON_Obj.index_order !== "") {
+                        $("#divJson").find('[name="index_order"]').val(JSON_Obj.index_order);
+                    } else if (JSON_Obj.order !== undefined && JSON_Obj.order !== null && JSON_Obj.order !== "") {
+                        $("#divJson").find('[name="index_order"]').val(JSON_Obj.order);
+                    } else {
+                        $("#divJson").find('[name="index_order"]').val("0");
                     }
 
                     if (JSON_Obj["org_index"] !== undefined && JSON_Obj["org_index"] !== null) {
@@ -1906,6 +2229,26 @@ var addStory = (async function () {
         });
     }
     function AddField(type, text) {
+        if (!type) return;
+        type = type.trim();
+        const typeMap = {
+            "heading": "Heading",
+            "paragraph": "Paragraph",
+            "quote": "Quote",
+            "quote green": "Quote green",
+            "quote dark green": "Quote dark green",
+            "quote light green": "Quote light green",
+            "bulleted list": "Bulleted list",
+            "paragraph bold": "Paragraph bold",
+            "video": "Video",
+            "image url(left)": "Image Url(Left)",
+            "image (left)": "Image Url(Left)",
+            "image url(right)": "Image Url(Right)",
+            "image (right)": "Image Url(Right)"
+        };
+        if (typeMap[type.toLowerCase()]) {
+            type = typeMap[type.toLowerCase()];
+        }
         var element = [];
         element.push(
             '<div class="row col-md-12 fullstory column" draggable="true">'
@@ -2047,7 +2390,7 @@ var addStory = (async function () {
         element.push(
             '<div class="col-md-3 form-group"><label></label><br><a href="#" class="btnFullStory">Edit</a><a href="#" class="btnFullStory">Delete</a></div>'
         );
-        element.push('<hr class="bg-info col-md-12"></div>');
+        element.push('<div class="bg-info col-md-12" style="height: 3px; background-color: #38bdf8; margin: 12px 0 4px 0; border-radius: 2px; clear: both; display: block; padding: 0;"></div></div>');
         element.join(" ");
 
         var divName = "";
@@ -2060,7 +2403,24 @@ var addStory = (async function () {
         $("#" + divName + "").append(element.join(" "));
         var cols = $("#" + divName + " .column");
         [].forEach.call(cols, addDnDHandlers);
-        $("#" + divName + " .customeEditor:last").focus();
+        setTimeout(function () {
+            var $newEditor = $("#" + divName + " .customeEditor:last");
+            if ($newEditor.length > 0) {
+                var el = $newEditor[0];
+                el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                el.focus();
+                try {
+                    var range = document.createRange();
+                    range.selectNodeContents(el);
+                    range.collapse(false);
+                    var sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                } catch (e) {
+                    console.log("Error positioning cursor:", e);
+                }
+            }
+        }, 50);
     }
 
 
@@ -2516,40 +2876,54 @@ var addStory = (async function () {
                 if (locationVal && locationVal !== "NoLocation") {
                     await deleteFromLocation(slug, locationVal);
                 }
+                if (previousLocation && previousLocation !== "NoLocation" && previousLocation !== locationVal) {
+                    await deleteFromLocation(slug, previousLocation);
+                }
 
                 // 4. Delete from Instructor
                 const instructorVal = $("#divJson #ddl_instructor").val();
                 if (instructorVal && instructorVal !== "noinstructor") {
                     await deleteFromInstructor(slug, instructorVal);
                 }
+                if (previousInstructor && previousInstructor !== "noinstructor" && previousInstructor !== instructorVal) {
+                    await deleteFromInstructor(slug, previousInstructor);
+                }
 
                 // 5. Delete from Organisation
-                const organisationVal = $("#divJson #ddl_organisation").val();
-                if (organisationVal && organisationVal !== "NoOrganisation") {
-                    await deleteFromOrganisation(slug, organisationVal);
+                const currentOrgVal = $("#divJson #ddl_organisation").val() || [];
+                const currentOrgArr = Array.isArray(currentOrgVal) ? currentOrgVal : [currentOrgVal];
+                const prevOrgArr = Array.isArray(previousOrganisation) ? previousOrganisation : (previousOrganisation ? [previousOrganisation] : []);
+                const allOrgsToDelete = Array.from(new Set([...currentOrgArr, ...prevOrgArr]))
+                    .map(resolveOrganisationId)
+                    .filter(o => o && o !== "NoOrganisation" && o !== "noorganisation");
+                for (const orgId of allOrgsToDelete) {
+                    await deleteFromOrganisation(slug, orgId);
                 }
 
                 // 6. Delete from Categories
-                const categoryVal = $("#divJson #ddl_ddlcategory").val();
-                if (categoryVal) {
-                    const categoriesArr = Array.isArray(categoryVal) ? categoryVal : [categoryVal];
-                    for (const cat of categoriesArr) {
-                        if (!cat) continue;
-                        await deleteFromCategory(slug, cat);
-                    }
+                const currentCatVal = $("#divJson #ddl_ddlcategory").val() || [];
+                const currentCatArr = Array.isArray(currentCatVal) ? currentCatVal : [currentCatVal];
+                const prevCatArr = Array.isArray(previousCategory) ? previousCategory : (previousCategory ? [previousCategory] : []);
+                const allCatsToDelete = Array.from(new Set([...currentCatArr, ...prevCatArr])).filter(Boolean);
+                for (const cat of allCatsToDelete) {
+                    await deleteFromCategory(slug, cat);
                 }
 
                 // 7. Delete from Feeds
                 for (const feed of storyAlsoOn) {
-                    if ($('[name="' + feed.chkbox + '"]').is(":checked")) {
+                    if ($('[name="' + feed.chkbox + '"]').is(":checked") || feed.isExist) {
                         await deleteFromFeed(feed.file, slug);
                     }
                 }
 
                 // 8. Delete from Tags
                 const tagsVal = $("#divJson").find('[name="tags"]').val();
-                if (tagsVal) {
-                    await deleteFromTags(slug, tagsVal);
+                const allTagsToDelete = Array.from(new Set([
+                    ...(tagsVal ? String(tagsVal).split(',') : []),
+                    ...(previousTags ? String(previousTags).split(',') : [])
+                ])).map(t => t.trim()).filter(Boolean);
+                if (allTagsToDelete.length > 0) {
+                    await deleteFromTags(slug, allTagsToDelete.join(','));
                 }
 
                 $("body").toggleClass("loaded");
@@ -2605,7 +2979,7 @@ var addStory = (async function () {
         }
     }
 
-    let deleteFromLocation = async (slug, location) => {
+    async function deleteFromLocation(slug, location) {
         const locSlug = normalizeLocationSlug(location);
         const pathSlug = normalizeDetailPathSegment(slug);
         if (!pathSlug) {
@@ -2623,7 +2997,7 @@ var addStory = (async function () {
         }
     };
 
-    let deleteFromInstructor = async (slug, instructor) => {
+    async function deleteFromInstructor(slug, instructor) {
         if (!instructor || instructor === "noinstructor") return;
         const url = `${INSTRUCTORS_API_BASE}/${instructor}`;
         try {
@@ -2661,7 +3035,7 @@ var addStory = (async function () {
         }
     };
 
-    let deleteFromOrganisation = async (slug, organisation) => {
+    async function deleteFromOrganisation(slug, organisation) {
         const url = organisationDetailPostUrl(organisation, slug);
         try {
             const response = await apiFetch(url, {
@@ -2674,7 +3048,7 @@ var addStory = (async function () {
         }
     };
 
-    let deleteFromCategory = async (slug, category) => {
+    async function deleteFromCategory(slug, category) {
         const url = `${CATEGORIES_API_BASE}/${encodeURIComponent(category)}/${encodeURIComponent(slug)}`;
         try {
             const response = await apiFetch(url, {
@@ -2705,7 +3079,7 @@ var addStory = (async function () {
             }
         }
     }
-    const WriteInMasterIndex = async (templateTop) => {
+    async function WriteInMasterIndex(templateTop) {
         var categoryList = [];
         if ($('#ddl_ddlcategory').attr('multiple') == "multiple") {
             categoryList = $("#ddl_ddlcategory").val();
@@ -2742,7 +3116,7 @@ var addStory = (async function () {
             console.log(category);
         });
     };
-    const RemoveFromUnchecked = async (slug) => {
+    async function RemoveFromUnchecked(slug) {
         let vddlCategory = $("#ddl_ddlcategory").val();
         $(previousCategory).each(async function () {
             let category = this.toString();
@@ -2773,7 +3147,7 @@ var addStory = (async function () {
     };
 
 
-    let saveOninstructor = async (templateTop) => {
+    async function saveOninstructor(templateTop) {
         let _instructor = $('#ddl_instructor').val();
         console.log("Saving story to instructor:", _instructor, "Type:", type, "Previous Instructor:", previousInstructor);
         
@@ -2838,7 +3212,7 @@ var addStory = (async function () {
             previousInstructor = "";
         }
     };
-    let saveOnSubcategory = async (templateTop) => {
+    async function saveOnSubcategory(templateTop) {
         var checkedCategories = $('#ddl_sub_categories').val();
         if ($('#ddl_sub_categories').attr('multiple') == "multiple" && checkedCategories.length > 0) {
             $(checkedCategories).each(async function () {
@@ -2878,59 +3252,87 @@ var addStory = (async function () {
         }
     }
 
-    let saveOnOrganisation = async (templateTop, filename, path) => {
-        if (filename != "NoOrganisation" && filename != null && filename != "") {
-            const orgSlug = filename.toLowerCase().replace(/ /g, "_");
-            const normalizePrevious = (previousOrganisation || "").toLowerCase().trim().replace(/ /g, "_");
+    async function saveOnOrganisation(templateTop, organisations, path) {
+        let rawCurrent = [];
+        if (Array.isArray(organisations)) {
+            rawCurrent = organisations;
+        } else if (typeof organisations === "string" && organisations.trim() !== "" && organisations !== "NoOrganisation") {
+            rawCurrent = organisations.split(",");
+        }
+        let currentOrgs = rawCurrent.map(resolveOrganisationId).filter(Boolean);
 
-            // Handle organisation change: delete from old if it's different
-            if (normalizePrevious != "" && normalizePrevious != "noorganisation" && normalizePrevious != orgSlug) {
+        let rawPrev = [];
+        if (Array.isArray(previousOrganisation)) {
+            rawPrev = previousOrganisation;
+        } else if (typeof previousOrganisation === "string" && previousOrganisation.trim() !== "" && previousOrganisation !== "NoOrganisation" && previousOrganisation !== "noorganisation") {
+            rawPrev = previousOrganisation.split(",");
+        }
+        let prevOrgs = rawPrev.map(resolveOrganisationId).filter(Boolean);
+
+        // Delete from organisations that were unchecked during edit
+        if (editSlug !== "") {
+            const removedOrgs = prevOrgs.filter(o => !currentOrgs.includes(o));
+            for (const removedOrg of removedOrgs) {
                 try {
-                    await deleteFromOrganisation(templateTop.slug, normalizePrevious);
+                    console.log(`Removing story ${templateTop.slug} from unchecked organisation id: ${removedOrg}`);
+                    await deleteFromOrganisation(templateTop.slug, removedOrg);
                 } catch (e) {
-                    console.error("Error removing from previous organisation via API:", e);
+                    console.error(`Error removing from organisation ${removedOrg} via API:`, e);
                 }
             }
+        }
 
+        // Save story to every selected organisation by ID
+        for (const orgId of currentOrgs) {
+            if (!orgId) continue;
             try {
-                let method = "POST";
-                if (editSlug !== "") {
-                    // Only use PUT if the organisation did NOT change
-                    if (normalizePrevious === orgSlug) {
-                        method = "PUT";
-                    }
-                }
-                const detailUrl = method === "POST" ? organisationDetailPostUrl(orgSlug) : organisationDetailPostUrl(orgSlug, templateTop.slug);
+                const wasPreviouslyInThisOrg = prevOrgs.includes(orgId);
+                let method = (editSlug !== "" && wasPreviouslyInThisOrg) ? "PUT" : "POST";
+                let detailUrl = method === "POST"
+                    ? organisationDetailPostUrl(orgId)
+                    : organisationDetailPostUrl(orgId, templateTop.slug);
 
-                // Prefix slug with organisation ID as required by the API
+                // Send story to organisation by ID (id and organisation fields set to orgId, not name)
                 const organisationBody = {
                     ...templateTop,
-                    id: orgSlug,
+                    id: orgId,
+                    organisation: orgId,
                     slug: templateTop.slug,
                     org_index: (templateTop["org_index"] !== undefined && templateTop["org_index"] !== "" && !isNaN(Number(templateTop["org_index"]))) ? Number(templateTop["org_index"]) : 0
                 };
 
-                const response = await apiFetch(detailUrl, {
+                console.log(`Writing story to organisation by id '${orgId}' via ${method}: ${detailUrl}`);
+                let response = await apiFetch(detailUrl, {
                     method: method,
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(organisationBody)
                 });
 
+                // Fall back to POST if PUT returns error (e.g. slug not found in this organisation)
+                if (method === "PUT" && !response.ok) {
+                    console.log(`Organisation '${orgId}': PUT failed or slug not found, retrying with POST to base url`);
+                    const postUrl = organisationDetailPostUrl(orgId);
+                    response = await apiFetch(postUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(organisationBody)
+                    });
+                }
+
                 if (!response.ok) {
-                    await logApiError(response, `organisation detail ${method}`);
+                    await logApiError(response, `organisation detail write (${orgId})`);
                 } else {
                     const meta = await response.json();
-                    console.log(`Organisation Detail API Response (${method}):`, meta);
-                    previousOrganisation = filename;
+                    console.log(`Organisation Detail API Response for ${orgId}:`, meta);
                 }
             } catch (e) {
-                console.error("Error writing organisation detail via API:", e);
+                console.error(`Error writing organisation detail for ${orgId} via API:`, e);
             }
         }
+        previousOrganisation = [...currentOrgs];
     }
 
-
-    let saveOnTags_Location = async (templateTop, filename, path) => {
+    async function saveOnTags_Location(templateTop, filename, path) {
 
         if (path == "tags") {
             try {

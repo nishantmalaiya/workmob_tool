@@ -2,8 +2,8 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Add Stories</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'  https://sdk.amazonaws.com; style-src 'self' 'unsafe-inline' https://maxcdn.bootstrapcdn.com; connect-src *; img-src 'self' data: *;">
+    <title>Story Editor - Workmob</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://sdk.amazonaws.com; style-src 'self' 'unsafe-inline' https://maxcdn.bootstrapcdn.com; connect-src *; img-src 'self' data: *;">
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/Loader.css">
     <link href="css/multiple-select.css" rel="stylesheet">
@@ -12,87 +12,511 @@
     <link rel="stylesheet" href="css/selectize.bootstrap3.min.css"/>
     
     <style>
-
-        .customeEditor:empty {
-            border: 1px solid black;
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f1f5f9 !important;
+            color: #1e293b;
+            padding: 20px 24px 60px 24px;
         }
 
-        .btnFullStory {
-            padding-left: 1px;
-            padding-right: 5px;
-            text-decoration: none;
-            color: inherit;
+        .editor-container {
+            max-width: 1400px;
+            margin: 0 auto;
         }
 
-        div:focus {
-            background-color: Aqua;
+        /* Dashboard Cards */
+        .dashboard-card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 22px 26px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.02);
+            border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+
+        .page-title {
+            margin: 0 0 4px 0;
+            font-size: 22px;
+            font-weight: 700;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .page-title .glyphicon {
+            color: #2563eb;
+            font-size: 20px;
+        }
+
+        .page-subtitle {
+            margin: 0;
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title .glyphicon {
+            color: #2563eb;
+            font-size: 16px;
+        }
+
+        .section-desc {
+            font-size: 12px;
+            color: #64748b;
+            margin: 3px 0 0 0;
+        }
+
+        /* Form Inputs & Fields */
+        #divJson {
+            margin: 0 -10px;
+        }
+
+        #divJson > div {
+            padding: 0 10px;
+            margin-bottom: 16px;
+        }
+
+        #divJson label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #475569;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        #divJson .form-control {
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            box-shadow: none;
+            height: 38px;
+            padding: 6px 12px;
+            font-size: 13px;
+            color: #0f172a;
+            background-color: #ffffff;
+            transition: all 0.15s ease;
+        }
+
+        #divJson .form-control:focus {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+            background-color: #ffffff !important;
+            outline: none;
+        }
+
+        #divJson hr {
+            width: 100%;
+            margin: 20px 0 24px 0;
+            border: 0;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        /* Checkbox styling */
+        #divJson input[type="checkbox"] {
+            width: 17px;
+            height: 17px;
+            cursor: pointer;
+            vertical-align: middle;
+            margin-top: -2px;
+            margin-right: 6px;
         }
 
         .error {
-            background-color: palevioletred;
+            border-color: #ef4444 !important;
+            background-color: #fef2f2 !important;
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2) !important;
+        }
+
+        /* Block Toolbar */
+        .story-block-toolbar {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .block-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
         }
 
         .btnAdd {
-            font-size: small;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 6px;
+            padding: 6px 13px;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #334155;
+            transition: all 0.15s ease;
+            text-decoration: none !important;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            user-select: none;
+        }
+
+        .btnAdd:hover {
+            background: #2563eb;
+            color: #ffffff;
+            border-color: #2563eb;
+        }
+
+        .btnAdd:active {
+            transform: translateY(1px);
+        }
+
+        .language-switcher-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .language-switcher-group label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #475569;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        #ddlLanguage {
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            padding: 4px 10px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #0f172a;
+            background-color: #ffffff;
+            height: 34px;
+        }
+
+        /* Story Blocks */
+        .fullstory {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            transition: all 0.15s ease;
+        }
+
+        .fullstory:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+        }
+
+        /* Dynamic bg-info col-md-12 divider inside story blocks */
+        .fullstory .bg-info.col-md-12,
+        .fullstory .bg-info,
+        .fullstory div.bg-info,
+        .fullstory hr.bg-info {
+            height: 3px !important;
+            background-color: #38bdf8 !important;
+            border: none !important;
+            margin: 14px 0 4px 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            border-radius: 2px !important;
+            clear: both !important;
+            display: block !important;
+            float: none !important;
+        }
+
+        .customeEditor {
+            border: 1px dashed #cbd5e1;
+            border-radius: 6px;
+            padding: 10px 14px;
+            min-height: 44px;
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            font-size: 14px;
+            line-height: 1.6;
+            transition: all 0.15s ease;
+            outline: none;
+            cursor: text;
+        }
+
+        .customeEditor:focus {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+            background-color: #ffffff !important;
+        }
+
+        /* Prevent any pasted content or nested tags from having black/dark background */
+        .customeEditor * {
+            background: transparent !important;
+            background-color: transparent !important;
+        }
+
+        .customeEditor *:not([style*="color: green"]):not([style*="color: darkgreen"]):not([style*="color: lightgreen"]) {
+            color: inherit !important;
+        }
+
+        p.customeEditor, h3.customeEditor, blockquote.customeEditor, div.customeEditor {
+            margin: 0;
+            display: block;
+        }
+
+        .btnFullStory {
+            display: inline-block;
+            padding: 5px 12px;
+            margin-right: 6px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-decoration: none !important;
+            transition: all 0.15s ease;
+        }
+
+        .btnFullStory:first-of-type {
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+        }
+
+        .btnFullStory:first-of-type:hover {
+            background: #2563eb;
+            color: #ffffff;
+        }
+
+        .btnFullStory:last-of-type {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        .btnFullStory:last-of-type:hover {
+            background: #dc2626;
+            color: #ffffff;
         }
 
         .column {
             cursor: move;
         }
 
-            .column.over {
-                border-top: 2px solid #333;
-            }
+        .column.over {
+            border-top: 2px solid #2563eb;
+            background: #eff6ff;
+        }
+
+        /* Bottom Floating Action Bar */
+        .bottom-action-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px 24px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+            margin-top: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .bottom-action-card .btn {
+            font-weight: 700;
+            padding: 9px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Selectize inside addStory */
+        .selectize-input {
+            border-radius: 6px !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: none !important;
+            min-height: 38px !important;
+            padding: 6px 12px !important;
+        }
+
+        .selectize-dropdown {
+            border-radius: 6px !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+            z-index: 1050 !important;
+        }
+
+        /* Multiple-Select styling matching form controls */
+        .ms-parent {
+            width: 100% !important;
+        }
+
+        .ms-choice {
+            height: 38px !important;
+            line-height: 36px !important;
+            border-radius: 6px !important;
+            border: 1px solid #cbd5e1 !important;
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            box-shadow: none !important;
+            font-size: 13px !important;
+        }
+
+        .ms-choice:focus,
+        .ms-choice.focus {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+        }
+
+        .ms-choice > span {
+            padding-left: 12px !important;
+            line-height: 36px !important;
+            font-size: 13px !important;
+            color: #0f172a !important;
+        }
+
+        .ms-choice > span.placeholder {
+            color: #94a3b8 !important;
+        }
+
+        .ms-choice > div {
+            top: 6px !important;
+            right: 8px !important;
+        }
+
+        .ms-drop {
+            border-radius: 8px !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+            font-size: 13px !important;
+            padding: 6px !important;
+        }
+
+        .ms-search input {
+            border-radius: 6px !important;
+            border: 1px solid #cbd5e1 !important;
+            padding: 6px 10px !important;
+            font-size: 13px !important;
+            height: 34px !important;
+        }
     </style>
 </head>
-<body style="background-color: rgb(224, 252, 243);" class="loaded">
-
+<body class="loaded">
     <div id="loader-wrapper">
         <div id="loader"></div>
-
-        <!--<div class="loader-section section-left"></div>
-        <div class="loader-section section-right"></div>-->
-
     </div>
 
-
-    <div class="row col-md-12" id="content">
-        <h3 id="hname" class="col-md-12"></h3>
-
-
-        <div class="clearfix"></div>
-        <div id="divJson">
-
+    <div class="editor-container">
+        <!-- Top Header Card -->
+        <div class="dashboard-card" style="margin-bottom: 20px;">
+            <div class="row" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 0;">
+                <div>
+                    <h3 class="page-title" style="margin: 0;">
+                        <span class="glyphicon glyphicon-pencil"></span>
+                        <span id="hname">Story Details</span>
+                    </h3>
+                    <p class="page-subtitle" style="margin-top: 4px;">Configure story metadata, social media links, multi-language content, and publication channels.</p>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-default btn-sm" onclick="$('#btnCanel').trigger('click');" style="font-weight: 600;">
+                        <span class="glyphicon glyphicon-remove"></span> Cancel
+                    </button>
+                    <button type="button" class="btn btn-success btn-sm" onclick="$('#btnSave').trigger('click');" style="font-weight: 700;">
+                        <span class="glyphicon glyphicon-floppy-disk"></span> Save Story
+                    </button>
+                </div>
+            </div>
         </div>
-        <hr class="col-md-12" />
-        <div class="col-md-11 form-group">
-            <a id="btnHeading" class="btn btn-info btnAdd">Heading</a>
-            <a id="btnParagraph" class="btn btn-info btnAdd">Paragraph</a>
-            <a id="btnQuote" class="btn btn-info btnAdd">Quote</a>
-            <a id="btnQuoteG" class="btn btn-info btnAdd">Quote green</a>
-            <a id="btnQuoteDG" class="btn btn-info btnAdd">Quote dark green</a>
-            <a id="btnQuoteLg" class="btn btn-info btnAdd">Quote light green</a>
-            <a id="btnBulletedList" class="btn btn-info btnAdd">Bulleted list</a>
-            <a id="btnParagraphBold" class="btn btn-info btnAdd">Paragraph bold</a>
-            <a id="btnVideo" class="btn btn-info btnAdd">Video</a>
-            <a id="btnImageLeft" class="btn btn-info btnAdd">Image Url(Left)</a>
-            <a id="btnImageRight" class="btn btn-info btnAdd">Image Url(Right)</a>
-        </div>
-        <div class="col-md-1 form-group">
-            <label>&nbsp;</label>
-            <select id="ddlLanguage">
-                <option value="English">English</option>
-                <option value="Hindi">Hindi</option>
-            </select>
-        </div>
-        <div class="col-md-12 row" id="divExtraField"></div>
-        <div class="col-md-12 row" id="divExtraFieldHindi"></div>
-        <hr class="col-md-12" />
-        <div class="form-group col-md-12 text-center">
-            <label></label>
-            <a id="btnSave" tabindex="2" class="btn btn-success">Save Story</a>
-            <a id="btnCanel" class="btn btn-danger">Cancel</a>
-            <a id="btndelete" class="btn btn-danger">Delete Story</a>
+
+        <!-- Main Form Container -->
+        <div class="row" id="content" style="margin: 0;">
+            <!-- Story Metadata Card -->
+            <div class="dashboard-card col-md-12">
+                <div class="section-header">
+                    <div>
+                        <h4 class="section-title"><span class="glyphicon glyphicon-th-list"></span> Story Metadata & Media</h4>
+                        <p class="section-desc">Fill in headings, images, videos, social links, location, and categorization.</p>
+                    </div>
+                </div>
+
+                <!-- Generated form fields from story.json -->
+                <div id="divJson" class="row"></div>
+            </div>
+
+            <!-- Story Body Blocks Card -->
+            <div class="dashboard-card col-md-12" style="margin-top: 10px;">
+                <div class="section-header">
+                    <div>
+                        <h4 class="section-title"><span class="glyphicon glyphicon-align-left"></span> Full Story Content Blocks</h4>
+                        <p class="section-desc">Compose the story narrative by inserting headings, paragraphs, quotes, videos, and images.</p>
+                    </div>
+                </div>
+
+                <div class="story-block-toolbar">
+                    <div class="block-buttons">
+                        <a id="btnHeading" class="btn btn-default btnAdd" data-type="Heading"><span class="glyphicon glyphicon-header"></span> Heading</a>
+                        <a id="btnParagraph" class="btn btn-default btnAdd" data-type="Paragraph"><span class="glyphicon glyphicon-font"></span> Paragraph</a>
+                        <a id="btnQuote" class="btn btn-default btnAdd" data-type="Quote"><span class="glyphicon glyphicon-comment"></span> Quote</a>
+                        <a id="btnQuoteG" class="btn btn-default btnAdd" data-type="Quote green"><span class="glyphicon glyphicon-comment text-success"></span> Quote Green</a>
+                        <a id="btnQuoteDG" class="btn btn-default btnAdd" data-type="Quote dark green"><span class="glyphicon glyphicon-comment" style="color: #15803d;"></span> Quote Dark Green</a>
+                        <a id="btnQuoteLg" class="btn btn-default btnAdd" data-type="Quote light green"><span class="glyphicon glyphicon-comment" style="color: #86efac;"></span> Quote Light Green</a>
+                        <a id="btnBulletedList" class="btn btn-default btnAdd" data-type="Bulleted list"><span class="glyphicon glyphicon-list"></span> Bulleted List</a>
+                        <a id="btnParagraphBold" class="btn btn-default btnAdd" data-type="Paragraph bold"><span class="glyphicon glyphicon-bold"></span> Paragraph Bold</a>
+                        <a id="btnVideo" class="btn btn-default btnAdd" data-type="Video"><span class="glyphicon glyphicon-film"></span> Video</a>
+                        <a id="btnImageLeft" class="btn btn-default btnAdd" data-type="Image Url(Left)"><span class="glyphicon glyphicon-picture"></span> Image (Left)</a>
+                        <a id="btnImageRight" class="btn btn-default btnAdd" data-type="Image Url(Right)"><span class="glyphicon glyphicon-picture"></span> Image (Right)</a>
+                    </div>
+                    <div class="language-switcher-group">
+                        <label for="ddlLanguage">Language:</label>
+                        <select id="ddlLanguage">
+                            <option value="English">English</option>
+                            <option value="Hindi">Hindi</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row" id="divExtraField" style="margin: 0;"></div>
+                <div class="row" id="divExtraFieldHindi" style="margin: 0;"></div>
+            </div>
+
+            <!-- Bottom Floating Action Bar -->
+            <div class="col-md-12" style="padding: 0;">
+                <div class="bottom-action-card">
+                    <a id="btnSave" tabindex="2" class="btn btn-success">
+                        <span class="glyphicon glyphicon-floppy-disk"></span> Save Story
+                    </a>
+                    <a id="btnCanel" class="btn btn-default">
+                        <span class="glyphicon glyphicon-remove"></span> Cancel
+                    </a>
+                    <a id="btndelete" class="btn btn-danger">
+                        <span class="glyphicon glyphicon-trash"></span> Delete Story
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -103,22 +527,7 @@
     <script type="text/javascript" src="Js/BucketConfigurations.js"></script>
     <script src="Js/multiple-select.js"></script>
     <script src="Js/moment.min.js"></script>
-    <!-- <script src="Js/select2.full.min.js"></script> -->
-    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script> -->
-    
     <script type="text/javascript" src="addStory.js"></script>
-    <script src="Js/selectize.min.js" ></script>
-    <!--<script>
-        $(function () {
-            var tt = setInterval(function () {
-                if ($('#divJson #ddl_ddlcategory').length == 1) {
-                    $('#divJson #ddl_ddlcategory').multipleSelect();
-                    clearInterval(tt);
-                }
-            }, 100);
-
-        });
-    </script>-->
-
+    <script src="Js/selectize.min.js"></script>
 </body>
 </html>

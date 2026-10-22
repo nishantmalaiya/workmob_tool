@@ -8,13 +8,36 @@ var ipcRenderer = require('electron').ipcRenderer;
 let common = require('./Js/config');
 let activePathS3 = common.getS3Path();
 
+var type = remote.getGlobal("sharedObj") ? remote.getGlobal("sharedObj").currentStory : "default";
+
+const PATH_KEY = "mobile-home";
+const FALLBACK_PATH = "stories-mobile-home";
+const MODEL_CATEGORY = "mobile-home-screen";
+
 var GlobalJSONObj = [];
 var lastKey = '';
 var hasMore = false;
 var isFetching = false;
-var pageSize = 50;
 
-mobile_home_screenList();
+// Clean SVG fallback placeholder for missing/broken story thumbnails
+const FALLBACK_THUMB = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='70' height='48' viewBox='0 0 70 48'%3E%3Crect width='70' height='48' fill='%23e2e8f0'/%3E%3Cpath d='M26 18a4 4 0 1 1-8 0 4 4 0 0 1 8 0zm-13 18l11-13 7 8 12-15 15 20H13z' fill='%2394a3b8'/%3E%3C/svg%3E";
+
+function showLoaderImmediate() {
+    $('body').removeClass('loaded');
+    $('#loader-wrapper').css({ visibility: 'visible', transform: 'translateY(0)', transition: 'none' });
+}
+
+function hideLoaderImmediate() {
+    $('body').addClass('loaded');
+    $('#loader-wrapper').css({ visibility: 'hidden', transform: 'translateY(-100%)', transition: 'none' });
+}
+
+$(document).ready(function () {
+    $('#storyTableHeader').hide();
+    $('#paginationProgress').hide();
+    $('#paginationEndMessage').hide();
+    mobile_home_screenList();
+});
 
 function mobile_home_screenList() {
     GlobalJSONObj = [];
@@ -22,79 +45,257 @@ function mobile_home_screenList() {
     hasMore = false;
     isFetching = false;
     $('#divStory').html('');
-    
-    fetchNextPageOfStories();
+    $('#storyTableHeader').hide();
+    $('#paginationProgress').hide();
+    $('#paginationEndMessage').hide();
+
+    fetchNextPageOfStories(true);
 }
 
-async function fetchNextPageOfStories() {
+// Show/hide pagination progress UI
+function showPaginationProgress(show) {
+    if (show) {
+        const loadedCount = GlobalJSONObj ? GlobalJSONObj.length : 0;
+        $('#paginationStats').text(`Loaded ${loadedCount} stories so far, fetching more...`);
+        $('#paginationProgress').show();
+        $('#paginationEndMessage').hide();
+        $('#storyCountBadge').html(`<span class="glyphicon glyphicon-refresh spin-icon"></span> Loading... (${loadedCount} loaded)`).show();
+    } else {
+        $('#paginationProgress').hide();
+    }
+}
+
+function updateStatsBadge() {
+    if (GlobalJSONObj && GlobalJSONObj.length > 0) {
+        const suffix = hasMore ? ' (scroll for more)' : ' (all loaded)';
+        $('#storyCountBadge').text(`${GlobalJSONObj.length} ${GlobalJSONObj.length === 1 ? 'story' : 'stories'}${suffix}`).show();
+    } else {
+        $('#storyCountBadge').hide();
+    }
+}
+
+async function fetchNextPageOfStories(isInitial) {
     if (isFetching) return;
     isFetching = true;
-    
-    let url = `${common.API_BASE_URL}/${activePathS3["mobile-home"]}`;
-    if (lastKey) {
-        url += `?lastKey=${encodeURIComponent(lastKey)}`;
+
+    if (isInitial) {
+        showLoaderImmediate();
+    } else {
+        showPaginationProgress(true);
     }
-    
+
+    const currentType = (remote.getGlobal("sharedObj") && remote.getGlobal("sharedObj").currentStory) ? remote.getGlobal("sharedObj").currentStory : type;
+    const currentActivePathS3 = common.getS3Path ? common.getS3Path() : activePathS3;
+    const endpoint = (currentActivePathS3[PATH_KEY] || FALLBACK_PATH).replace(/\//g, "").replace(".json", "");
+
+    // Except default section, limit is not passed in detail API
+    let url = (currentType === "default")
+        ? `${common.API_BASE_URL}/${endpoint}?limit=50`
+        : `${common.API_BASE_URL}/${endpoint}`;
+
+    if (lastKey) {
+        let keyParam = typeof lastKey === 'object' ? JSON.stringify(lastKey) : lastKey;
+        url += (url.includes('?') ? '&' : '?') + `lastKey=${encodeURIComponent(keyParam)}`;
+    }
+
     console.log("mobile_home_screen.js: Fetching URL:", url);
-    
+
     try {
         const response = await fetch(url);
-        console.log("mobile_home_screen.js: Fetch response status:", response.status);
         const data = await response.json();
-        console.log("mobile_home_screen.js: Data received:", data);
-        
+
         let fetchedStories = data.stories || data.data || data || [];
         if (!Array.isArray(fetchedStories) && typeof fetchedStories === 'object') {
             fetchedStories = fetchedStories.stories || fetchedStories.data || [];
         }
-        
+
         var startIndex = GlobalJSONObj.length;
         GlobalJSONObj = [...GlobalJSONObj, ...fetchedStories];
-        
-        lastKey = data.lastKey || '';
-        hasMore = data.hasMore === true || (data.lastKey ? true : false);
-        
-        console.log(`mobile_home_screen.js: Appended ${fetchedStories.length} stories. Total: ${GlobalJSONObj.length}. hasMore: ${hasMore}, next lastKey: ${lastKey}`);
-        
-        if (fetchedStories.length > 0) {
-            $('#divStory').append(RenderStory(fetchedStories, startIndex).join(" "));
+
+        lastKey = data.lastKey || data.lastEvaluatedKey || '';
+        hasMore = data.hasMore === true || (lastKey ? true : false);
+
+        if (GlobalJSONObj.length > 0) {
+            $('#storyTableHeader').show();
+            if (isInitial) {
+                $('#divStory').html(RenderStory(GlobalJSONObj, 0).join(" "));
+            } else if (fetchedStories.length > 0) {
+                $('#divStory').append(RenderStory(fetchedStories, startIndex).join(" "));
+            }
+
             var cols = document.querySelectorAll('#divStory .column');
             [].forEach.call(cols, addDnDHandlers);
+        } else {
+            $('#storyTableHeader').hide();
+            $('#divStory').html(renderEmptyState());
+        }
+
+        if (!hasMore && GlobalJSONObj.length > 0) {
+            $('#totalStoriesCount').text(GlobalJSONObj.length);
+            $('#paginationEndMessage').show();
+        } else {
+            $('#paginationEndMessage').hide();
         }
     } catch (err) {
-        console.error("mobile_home_screen.js: Error fetching next page:", err);
+        console.error("mobile_home_screen.js: Error fetching stories:", err);
+        if (GlobalJSONObj.length === 0) {
+            $('#storyTableHeader').hide();
+            $('#divStory').html('<div class="empty-state-card text-danger"><p>Error loading stories</p></div>');
+        }
     } finally {
         isFetching = false;
+        if (isInitial) {
+            hideLoaderImmediate();
+        } else {
+            showPaginationProgress(false);
+        }
+        updateStatsBadge();
     }
 }
 
-function RenderStory(pageSlice, startIndex) {
-    var storyCard = [];
-    for (let index = 0; index < pageSlice.length; index++) {
-        var _story = pageSlice[index];
-        var globalIndex = startIndex + index;
-        storyCard.push("<div class=\"storycard col-md-12 row column\" draggable=\"true\" id=\"" + _story.slug + "\">");
-        storyCard.push("<div class=\"col-md-1\">" + (globalIndex + 1) + " <input class=\"p-0\" type=\"checkbox\" name=\"chkSlug\" tabindex='" + (10000 + globalIndex) + "' value=\"" + _story.slug + "\">&nbsp<img class=\"storythumb p-0\" src=\"" + _story.thumb + "\" alt=\"" + _story.name + "\"></div>");
-        storyCard.push("<div class=\"col-md-7\"><h5>" + _story.storyHeading + "</h5>" + _story.industry + "<br></div>");
-        storyCard.push("<div class=\"col-md-1\">" + _story.location + "</div>");
-        storyCard.push("<div class=\"col-md-1\"><a name=\"Detail\" href=\"#\" data-id=\"" + _story.slug + "\" >Detail</a></div>");
-        if ($('#ddlCategory').val() == "") {
-            storyCard.push("<div class=\"col-md-1\"></div>");
-            storyCard.push("<div class=\"col-md-1\"></div>");
-        }
-        else {
-            storyCard.push("<div class=\"col-md-1\"><a href=\"#\" onclick=\"deleteStory('" + _story.slug + "')\">Remove</a></div>");
-            storyCard.push("<div class=\"col-md-1\"><input data-val='" + _story.slug + "' type=\"text\" class=\"form-control\" style=\"max-width:50px\" tabindex='" + (15000 + globalIndex) + "' name=\"txtorder\" value=\"" + globalIndex + "\"></div>");
-        }
-        storyCard.push("<hr class=\"storyHr\"></div>");
+// Render Story Cards using modern UI and index_order
+function RenderStory(stories, startIndex) {
+    var cards = [];
+    startIndex = startIndex || 0;
+
+    for (let index = 0; index < stories.length; index++) {
+        var _story = stories[index];
+        var currentIndex = startIndex + index + 1;
+        const displayOrder = (_story.index_order !== undefined && _story.index_order !== null && _story.index_order !== "")
+            ? _story.index_order
+            : ((_story.order !== undefined && _story.order !== null && _story.order !== "") ? _story.order : currentIndex);
+        const thumbUrl = _story.thumb || FALLBACK_THUMB;
+        const heading = _story.storyHeading || 'Untitled Story';
+        const industry = _story.industry || 'General';
+        const location = _story.location || 'N/A';
+        const author = _story.name ? `<span class="story-author"><span class="glyphicon glyphicon-user"></span> ${_story.name}</span>` : '';
+
+        cards.push(`
+            <div class="storycard column" draggable="true" id="${_story.slug}">
+                <div class="story-col-order">
+                    <span class="drag-handle" title="Drag to reorder"><span class="glyphicon glyphicon-menu-hamburger"></span></span>
+                    <span class="order-badge" id="order-${_story.slug}">${displayOrder}</span>
+                    <input type="checkbox" class="story-chk" name="chkSlug" value="${_story.slug}">
+                </div>
+                <div class="story-col-thumb">
+                    <img class="storythumb" src="${thumbUrl}" alt="${_story.name || heading}" onerror="this.onerror=null; this.src='${FALLBACK_THUMB}';">
+                </div>
+                <div class="story-col-info">
+                    <div class="story-title" title="${heading}">${heading}</div>
+                    <div class="story-tags">
+                        <span class="industry-tag">${industry}</span>
+                        ${author}
+                    </div>
+                </div>
+                <div class="story-col-loc">
+                    <span class="glyphicon glyphicon-map-marker text-danger"></span>
+                    <span title="${location}">${location}</span>
+                </div>
+                <div class="story-col-actions">
+                    <button type="button" class="btn btn-sm btn-info btn-detail" data-id="${_story.slug}">
+                        <span class="glyphicon glyphicon-eye-open"></span> Detail
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger btn-remove" onclick="deleteStory('${_story.slug}')">
+                        <span class="glyphicon glyphicon-trash"></span> Remove
+                    </button>
+                    <button type="button" class="btn btn-sm btn-default btn-update-order" onclick="showOrderInput('${_story.slug}', ${displayOrder})">
+                        <span class="glyphicon glyphicon-sort"></span> Update Order
+                    </button>
+                    <span class="order-edit-group" id="order-group-${_story.slug}" style="display:none;">
+                        <input type="number" id="order-input-${_story.slug}" class="order-input form-control input-sm" value="${displayOrder}">
+                        <button id="save-order-${_story.slug}" onclick="saveSingleOrder('${_story.slug}')" class="btn btn-sm btn-success btn-save-order">
+                            <span class="glyphicon glyphicon-ok"></span> Save
+                        </button>
+                    </span>
+                </div>
+            </div>
+        `);
     }
-    return storyCard;
+
+    return cards;
 }
 
+// Toggle Inline Order Edit Box
+function showOrderInput(slug, currentOrder) {
+    const group = $("#order-group-" + slug);
+    const input = $("#order-input-" + slug);
+    if (group.is(":visible")) {
+        group.hide();
+    } else {
+        input.val(currentOrder);
+        group.css('display', 'inline-flex');
+        input.focus();
+    }
+}
+
+// Save Single Story Order (same as categories.js)
+async function saveSingleOrder(slug) {
+    const orderInput = $("#order-input-" + slug);
+    const newIndex = parseInt(orderInput.val(), 10);
+
+    if (isNaN(newIndex)) {
+        alert("Please enter a valid number");
+        return;
+    }
+
+    showLoaderImmediate();
+
+    try {
+        const currentType = (remote.getGlobal("sharedObj") && remote.getGlobal("sharedObj").currentStory) ? remote.getGlobal("sharedObj").currentStory : type;
+        const currentActivePathS3 = common.getS3Path ? common.getS3Path() : activePathS3;
+        const endpoint = (currentActivePathS3[PATH_KEY] || FALLBACK_PATH).replace(/\//g, "").replace(".json", "");
+
+        // Except default section, call POST method in API
+        const httpMethod = (currentType === "default") ? "PUT" : "POST";
+
+        // While POST, remove slug from the end of URL
+        const url = (httpMethod === "POST")
+            ? `${common.API_BASE_URL}/${endpoint}`
+            : `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(slug)}`;
+
+        console.log(`Updating order for slug: ${slug} to index: ${newIndex} using ${httpMethod} on ${url} (section: ${currentType})`);
+
+        // Find respective story data from loaded stories
+        const storyItem = (GlobalJSONObj || []).find(item => item && item.slug === slug) || {};
+
+        // In case of POST API send respective all data with index_order
+        const requestPayload = (httpMethod === "POST")
+            ? { ...storyItem, slug: slug, index_order: newIndex, order: newIndex }
+            : { slug: slug, index_order: newIndex, order: newIndex };
+
+        console.log(`Payload for ${httpMethod}:`, requestPayload);
+
+        const response = await fetch(url, {
+            method: httpMethod,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestPayload)
+        });
+
+        if (!response.ok) {
+            const errJson = await response.json().catch(() => ({}));
+            throw new Error(errJson.msg || errJson.message || `Failed to update order (status ${response.status})`);
+        }
+
+        console.log('Order updated for:', slug, 'to index:', newIndex);
+        $("#order-group-" + slug).hide();
+
+        // Refresh list by calling API again
+        mobile_home_screenList();
+    } catch (err) {
+        console.error('Error saving order:', err);
+        alert('Error saving order: ' + err.message);
+        hideLoaderImmediate();
+    }
+}
+
+// Delete single story and refresh list by calling API again
 async function deleteStory(slug) {
-    if (confirm("Are you sure you want to delete this?")) {
-        $('body').toggleClass('loaded');
-        const url = `${common.API_BASE_URL}/${activePathS3["mobile-home"]}/${encodeURIComponent(slug)}`;
+    if (confirm("Are you sure you want to remove this story?")) {
+        showLoaderImmediate();
+
+        const currentActivePathS3 = common.getS3Path ? common.getS3Path() : activePathS3;
+        const endpoint = (currentActivePathS3[PATH_KEY] || FALLBACK_PATH).replace(/\//g, "").replace(".json", "");
+        const url = `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(slug)}`;
 
         try {
             const response = await fetch(url, {
@@ -103,174 +304,263 @@ async function deleteStory(slug) {
             });
 
             if (!response.ok) {
-                const result = await response.json();
+                const result = await response.json().catch(() => ({}));
                 throw new Error(result.msg || `API delete failed with status ${response.status}`);
             }
 
-            // Success: update local list and UI
-            GlobalJSONObj = GlobalJSONObj.filter(itm => itm.slug != slug);
-            refreshVisibleStories();
-            
-            console.log("Story removed from mobile home screen successfully via API.");
+            console.log("Story removed successfully via API.");
+            mobile_home_screenList();
         } catch (error) {
-            console.error("Error deleting story from mobile home screen:", error);
+            console.error("Error deleting story:", error);
             alert("Failed to remove story: " + error.message);
-        } finally {
-            $('body').toggleClass('loaded');
+            hideLoaderImmediate();
         }
-    } else {
-        return false;
     }
 }
 
+// Save all order (via drag & drop or button click) and refresh list by calling API again
 async function saveUPre() {
+    if (!GlobalJSONObj || GlobalJSONObj.length === 0) return;
+
     var OrderedList = [];
     $('.storycard').each(function () {
         var _slug = $(this).attr('id');
         var item = GlobalJSONObj.filter(function (itm) {
             return itm.slug == _slug;
         });
-        if (item.length > 0) {
+        if (item && item.length > 0) {
             OrderedList.push(item[0]);
         }
     });
 
-    GlobalJSONObj = OrderedList;
+    if (OrderedList.length === 0) return;
 
-    $('body').toggleClass('loaded');
-    var meta = await WriteS3Bucket(GlobalJSONObj, activePathS3["mobile-home"]);
-    $('body').toggleClass('loaded');
-    if (meta.err) {
-        return console.log(meta.err);
+    // Recalculate badge indexes and index_order
+    OrderedList.forEach((itm, idx) => {
+        itm.index_order = idx + 1;
+        itm.order = idx + 1;
+    });
+
+    $('.storycard').each(function (idx) {
+        $(this).find('.order-badge').text(idx + 1);
+        $(this).find('.order-input').val(idx + 1);
+    });
+
+    showLoaderImmediate();
+    try {
+        const currentActivePathS3 = common.getS3Path ? common.getS3Path() : activePathS3;
+        var meta = await WriteS3Bucket(OrderedList, currentActivePathS3[PATH_KEY]);
+        if (meta && meta.err) {
+            console.error("Error saving order:", meta.err);
+            alert("Error saving story order: " + meta.err);
+            hideLoaderImmediate();
+            return;
+        }
+
+        GlobalJSONObj = OrderedList;
+        console.log("The file was saved ordered!");
+
+        const btn = $('#btnSaveAllOrder, #btnUpdateStory');
+        const orig = btn.html();
+        btn.html('<span class="glyphicon glyphicon-ok"></span> Saved!').removeClass('btn-success').addClass('btn-primary');
+        setTimeout(() => {
+            btn.html(orig).removeClass('btn-primary').addClass('btn-success');
+        }, 1800);
+
+        mobile_home_screenList();
+    } catch (e) {
+        console.error("Exception saving order:", e);
+        hideLoaderImmediate();
     }
-    console.log("The file was saved ordered!");
-    refreshVisibleStories();
 }
 
-function Model(pagename, slug) {
-    let data = { "slug": slug, "pagename": pagename, "category": "mobile-home-screen" };
-    ipcRenderer.send('input-broadcast', data);
+$('#btnSaveAllOrder, #btnUpdateStory').on('click', saveUPre);
+
+// Remove Selected Stories
+$('#btnRemoveSelected').on('click', async function () {
+    const selectedCheckboxes = $('.story-chk:checked');
+    if (selectedCheckboxes.length === 0) {
+        alert("Please select at least one story to remove.");
+        return;
+    }
+
+    if (confirm(`Are you sure you want to remove ${selectedCheckboxes.length} selected stor${selectedCheckboxes.length === 1 ? 'y' : 'ies'}?`)) {
+        showLoaderImmediate();
+        const currentActivePathS3 = common.getS3Path ? common.getS3Path() : activePathS3;
+        const endpoint = (currentActivePathS3[PATH_KEY] || FALLBACK_PATH).replace(/\//g, "").replace(".json", "");
+
+        for (let i = 0; i < selectedCheckboxes.length; i++) {
+            let deleteSlug = $(selectedCheckboxes[i]).val();
+            try {
+                const url = `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(deleteSlug)}`;
+                await fetch(url, {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" }
+                });
+            } catch (e) {
+                console.error(`Error deleting story ${deleteSlug}:`, e);
+            }
+        }
+        mobile_home_screenList();
+    }
+});
+
+// Remove All Stories
+$('#btnRemoveAll').on('click', async function () {
+    const allCheckboxes = $('.story-chk');
+    if (allCheckboxes.length === 0) {
+        alert("No stories to remove.");
+        return;
+    }
+
+    if (confirm('Are you sure? ALL stories in this list will be removed!')) {
+        showLoaderImmediate();
+        const currentActivePathS3 = common.getS3Path ? common.getS3Path() : activePathS3;
+        const endpoint = (currentActivePathS3[PATH_KEY] || FALLBACK_PATH).replace(/\//g, "").replace(".json", "");
+
+        for (let i = 0; i < allCheckboxes.length; i++) {
+            let deleteSlug = $(allCheckboxes[i]).val();
+            try {
+                const url = `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(deleteSlug)}`;
+                await fetch(url, {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" }
+                });
+            } catch (e) {
+                console.error(`Error deleting story ${deleteSlug}:`, e);
+            }
+        }
+        mobile_home_screenList();
+    }
+});
+
+// Select All checkbox in header
+$(document).on('change', '#chkSelectAll', function () {
+    const isChecked = $(this).is(':checked');
+    $('.story-chk').prop('checked', isChecked);
+});
+
+// Search by slug or keyword
+async function searchBySlug() {
+    const searchTerm = $("#searchBox").val().trim().toLowerCase();
+    if (!searchTerm) {
+        alert("Please enter a slug or heading to search");
+        return;
+    }
+
+    showLoaderImmediate();
+    $('#paginationProgress').hide();
+    $('#paginationEndMessage').hide();
+
+    try {
+        const currentActivePathS3 = common.getS3Path ? common.getS3Path() : activePathS3;
+        const endpoint = (currentActivePathS3[PATH_KEY] || FALLBACK_PATH).replace(/\//g, "").replace(".json", "");
+        let url = `${common.API_BASE_URL}/${endpoint}?slug=${encodeURIComponent(searchTerm)}`;
+
+        console.log('Search URL:', url);
+        let results = [];
+        try {
+            const response = await fetch(url);
+            if (response.ok) {
+                const json = await response.json();
+                results = json.stories || json.data || (Array.isArray(json) ? json : []);
+            }
+        } catch (e) {
+            console.log('API search failed, falling back to local filter:', e);
+        }
+
+        // Fallback to local filter if API search doesn't return results
+        if (results.length === 0 && GlobalJSONObj && GlobalJSONObj.length > 0) {
+            results = GlobalJSONObj.filter(s =>
+                (s.slug && s.slug.toLowerCase().includes(searchTerm)) ||
+                (s.storyHeading && s.storyHeading.toLowerCase().includes(searchTerm)) ||
+                (s.name && s.name.toLowerCase().includes(searchTerm))
+            );
+        }
+
+        if (results.length > 0) {
+            $('#storyTableHeader').show();
+            $("#divStory").html(RenderStory(results, 0).join(" "));
+            $('#storyCountBadge').text(`${results.length} result${results.length === 1 ? '' : 's'}`).show();
+
+            var cols = document.querySelectorAll('#divStory .column');
+            [].forEach.call(cols, addDnDHandlers);
+            hasMore = false;
+        } else {
+            $('#storyTableHeader').hide();
+            $('#storyCountBadge').hide();
+            $("#divStory").html(`
+                <div class="empty-state-card">
+                    <div class="empty-state-icon"><span class="glyphicon glyphicon-search"></span></div>
+                    <div class="empty-state-title">No Results Found</div>
+                    <div class="empty-state-desc">No stories matched "<strong>${searchTerm}</strong>". Click Clear to restore the list.</div>
+                </div>
+            `);
+        }
+    } catch (err) {
+        console.error("Error searching stories:", err);
+    } finally {
+        hideLoaderImmediate();
+    }
 }
 
-$('#divStory').on('click', 'a[name="Detail"]', function () {
+$("#searchBtn").on('click', searchBySlug);
+$("#searchBox").on('keypress', function (e) {
+    if (e.which === 13) {
+        e.preventDefault();
+        searchBySlug();
+    }
+});
+$("#clearSearchBtn").on('click', function () {
+    $("#searchBox").val('');
+    mobile_home_screenList();
+});
+
+// Detail click
+$('#divStory').on('click', '.btn-detail', function (e) {
+    e.preventDefault();
     var slug = $(this).attr('data-id');
     Model("addStory.html", slug);
 });
 
-const ReOrderStory = async () => {
-    let Storylist = [];
-    $('[name="txtorder"]').each(function () {
-        Storylist.push({ 'order': parseInt($(this).val()), 'slug': $(this).attr('data-val') });
-    });
-    Storylist.sort(function (a, b) {
-        return a.order - b.order;
-    });
-
-    let sortedVisibleItems = [];
-    $(Storylist).each(function () {
-        let slug = this.slug;
-        let story = GlobalJSONObj.filter(function (item) {
-            return item.slug == slug
-        });
-        if (story.length > 0) {
-            sortedVisibleItems.push(story[0]);
-        }
-    });
-
-    GlobalJSONObj = sortedVisibleItems;
-
-    $('body').toggleClass('loaded');
-    await WriteS3Bucket(GlobalJSONObj, activePathS3["mobile-home"]);
-    $('body').toggleClass('loaded');
-    console.log("Reordered successfully!");
-    refreshVisibleStories();
+function Model(pagename, slug) {
+    let data = { "slug": slug, "pagename": pagename, "category": MODEL_CATEGORY };
+    ipcRenderer.send('input-broadcast', data);
 }
 
-$('#btnUpdateStory').on('click', ({ currentTarget }) => {
-    ReOrderStory();
-});
-
-$('#btnRemoveSelected').on('click', async function () {
-    if (confirm('We will not be able restore! are you sure?')) {
-        $('body').toggleClass('loaded');
-        const selectedCheckboxes = $('[name="chkSlug"]:checked');
-        
-        for (let i = 0; i < selectedCheckboxes.length; i++) {
-            let deleteSlug = $(selectedCheckboxes[i]).val();
-            try {
-                const url = `${common.API_BASE_URL}/${activePathS3["mobile-home"]}/${encodeURIComponent(deleteSlug)}`;
-                const response = await fetch(url, {
-                    method: "DELETE",
-                    headers: { "Content-Type": "application/json" }
-                });
-                
-                if (response.ok) {
-                    GlobalJSONObj = GlobalJSONObj.filter(itm => itm.slug != deleteSlug);
-                    console.log(`Deleted ${deleteSlug} from mobile home screen via API.`);
-                }
-            } catch (e) {
-                console.error(`Error deleting story ${deleteSlug}:`, e);
-            }
-        }
-
-        $('body').toggleClass('loaded');
-        refreshVisibleStories();
-    }
-});
-
-$('#btnRemoveAll').on('click', async function () {
-    if (confirm('Are You Sure!! All files will be deleted.')) {
-        $('body').toggleClass('loaded');
-        const allCheckboxes = $('[name="chkSlug"]');
-        
-        for (let i = 0; i < allCheckboxes.length; i++) {
-            let deleteSlug = $(allCheckboxes[i]).val();
-            try {
-                const url = `${common.API_BASE_URL}/${activePathS3["mobile-home"]}/${encodeURIComponent(deleteSlug)}`;
-                const response = await fetch(url, {
-                    method: "DELETE",
-                    headers: { "Content-Type": "application/json" }
-                });
-                
-                if (response.ok) {
-                    GlobalJSONObj = GlobalJSONObj.filter(itm => itm.slug != deleteSlug);
-                    console.log(`Deleted ${deleteSlug} from mobile home screen via API.`);
-                }
-            } catch (e) {
-                console.error(`Error deleting story ${deleteSlug}:`, e);
-            }
-        }
-
-        $('body').toggleClass('loaded');
-        refreshVisibleStories();
-    }
-});
-
-function refreshVisibleStories() {
-    console.log("mobile_home_screen.js: refreshVisibleStories. GlobalJSONObj length:", GlobalJSONObj ? GlobalJSONObj.length : 0);
-    if (!GlobalJSONObj) return;
-    
-    $('#divStory').html(RenderStory(GlobalJSONObj, 0).join(" "));
-    
-    var cols = document.querySelectorAll('#divStory .column');
-    [].forEach.call(cols, addDnDHandlers);
-}
-
+// Window scroll listener for infinite scroll pagination
 let scrollTimeout;
 $(window).on("scroll", function () {
+    if (!hasMore || isFetching || !lastKey) return;
     if (scrollTimeout) clearTimeout(scrollTimeout);
     scrollTimeout = setTimeout(() => {
         var scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
         var windowHeight = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight || 0;
         var documentHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
-        
-        console.log(`mobile_home_screen.js: Scroll - scrollTop: ${scrollTop}, windowHeight: ${windowHeight}, documentHeight: ${documentHeight}, hasMore: ${hasMore}, isFetching: ${isFetching}`);
-        
+
         if (scrollTop + windowHeight >= documentHeight - 300) {
             if (hasMore && !isFetching) {
-                console.log("mobile_home_screen.js: Triggering fetchNextPageOfStories");
-                fetchNextPageOfStories();
+                fetchNextPageOfStories(false);
             }
         }
     }, 150);
 });
+
+// Empty State HTML helper
+function renderEmptyState() {
+    return `
+        <div class="empty-state-card">
+            <div class="empty-state-icon"><span class="glyphicon glyphicon-inbox"></span></div>
+            <div class="empty-state-title">No Stories Found</div>
+            <div class="empty-state-desc">There are currently no stories in this list.</div>
+        </div>
+    `;
+}
+
+// Backwards-compatibility aliases
+function refreshVisibleStories() {
+    mobile_home_screenList();
+}
+function ReOrderStory() {
+    saveUPre();
+}

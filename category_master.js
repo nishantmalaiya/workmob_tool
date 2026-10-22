@@ -8,7 +8,7 @@ var ipcRenderer = require('electron').ipcRenderer;
 const dialog = remote.dialog;
 let common = require('./Js/config');
 let activePathS3 = common.getS3Path();
-var type = remote.getGlobal("sharedObj").currentStory;
+var type = remote.getGlobal("sharedObj") ? remote.getGlobal("sharedObj").currentStory : "default";
 
 let lastKey = '';
 let hasMore = true;
@@ -16,8 +16,11 @@ let allCategories = [];
 let isFetching = false;
 let scrollTimeout = null;
 
-categorymasterList();
+$(document).ready(function () {
+    categorymasterList();
+});
 
+// Window scroll listener for pagination
 $(window).on("scroll", function () {
     if (scrollTimeout) clearTimeout(scrollTimeout);
     scrollTimeout = setTimeout(() => {
@@ -31,89 +34,190 @@ $(window).on("scroll", function () {
     }, 200);
 });
 
-// async function categorymasterList() {
-//     debugger;
-// // if(activePathS3["category"] == "product-category.json")
-// // {
-// //   const SaveResponce = await WriteS3Bucket(
-// //          [],
-// //          `${activePathS3["category"]}`
-// //     );
-// //     debugger;
+function escapeHtml(str) {
+    if (str === undefined || str === null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 
-// // }
-//     $('body').toggleClass('loaded');
-//     var meta = await readS3BucketAsync(activePathS3["category"], "");
+function showLoaderImmediate() {
+    $('body').removeClass('loaded');
+    $('#loader-wrapper').css({ visibility: 'visible', transform: 'translateY(0)', transition: 'none' });
+}
 
-//     $('body').toggleClass('loaded');
-//     if (meta.err) {
-//         $('#divStory').html('');
-//         return console.log(meta.err);
-//     }
-//     var storyCard = "";
-//     storyCard = "<div class=\"storycardheader col-md-12 row\">";
-//     storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title</h4></div>";
-//     storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title Hindi</h4></div>";
-//     storyCard = storyCard + "<div class=\"col-md-3\"><h4>Category</h4></div>";
-//     storyCard = storyCard + "<div class=\"col-md-1\"><h4>Total Stories</h4></div>";
-//     storyCard = storyCard + "<div class=\"col-md-1\"></div>";
-//     storyCard = storyCard + "<div class=\"col-md-1\"></div>";
-//     storyCard = storyCard + "<hr></div>";
-//     $('#divStory').html(storyCard);
-//     await RenderStory(JSON.parse(meta.data));
-// }
+function hideLoaderImmediate() {
+    $('body').addClass('loaded');
+    $('#loader-wrapper').css({ visibility: 'hidden', transform: 'translateY(-100%)', transition: 'none' });
+    $('.loader-section').css({ transition: 'none' });
+}
 
-// async function read(story) {
-//     $('body').toggleClass('loaded');
-//     await readS3Bucket(activePathS3["category-index"] + story.category + ".json", function (json) {
-//         $('body').toggleClass('loaded');
-//         var totals = 0;
-//         var storyCard = "";
-//         storyCard = "<div class=\"storycard col-md-12 row column\" draggable=\"true\" name=\"category\" id=\"" + story.category + "\">";
-//         storyCard = storyCard + "<div class=\"col-md-3\" name=\"title\"><h4>" + story.title + "</h4></div>";
-//         storyCard = storyCard + "<div class=\"col-md-3\" name=\"title_hindi\"><h4>" + story.title_hindi + "</h4></div>";
-//         storyCard = storyCard + "<div class=\"col-md-3\">" + story.category + "</div>";
-//         if (json.err) {
-//             storyCard = storyCard + "<div class=\"col-md-1\">0 stories</div>";
-//             storyCard = storyCard + "<div class=\"col-md-1\"><a href=\"#\" data-toggle=\"modal\" data-target=\"#delete-file-modal\" onclick=\"editCat('" + story.category + "','" + story.title + "','" + story.title_hindi + "')\">Edit</a></div>";
-//             storyCard = storyCard + "<div class=\"col-md-1\"><a href=\"#\" onclick=\"deleteCat('" + story.category + "',this)\">Delete</a></div>";
-//         }
-//         else {
-//             totals = JSON.parse(json.data).length;
-//             if (totals > 0) {
-//                 storyCard = storyCard + "<div class=\"col-md-1\">" + totals + " stories</div>";
-//                 storyCard = storyCard + "<div class=\"col-md-1\"><a href=\"#\" data-toggle=\"modal\" data-target=\"#delete-file-modal\" onclick=\"editCat('" + story.category + "','" + story.title + "','" + story.title_hindi + "')\">Edit</a></div>";
-//                 storyCard = storyCard + "<div class=\"col-md-1\"><a>&nbsp;</a></div>";
-//             }
-//             else {
-//                 storyCard = storyCard + "<div class=\"col-md-1\">0 stories</div>";
-//                 storyCard = storyCard + "<div class=\"col-md-1\"><a href=\"#\" data-toggle=\"modal\" data-target=\"#delete-file-modal\" onclick=\"editCat('" + story.category + "','" + story.title + "','" + story.title_hindi + "')\">Edit</a></div>";
-//                 storyCard = storyCard + "<div class=\"col-md-1\"><a href=\"#\" onclick=\"deleteCat('" + story.category + "',this)\">Delete</a></div>";
-//             }
-//         }
-//         storyCard = storyCard + "<hr class=\"storyHr\"></div>";
-//         $('#divStory').append(storyCard);
-//         var cols = document.querySelectorAll('#divStory .column');
-//         [].forEach.call(cols, addDnDHandlers);
-//     });
-// }
+function focusInput(id) {
+    setTimeout(function () {
+        var el = document.getElementById(id);
+        if (el) { el.focus(); }
+    }, 100);
+}
 
-async function RenderStory(JSON_Obj) {
-    for (let index = 0; index < JSON_Obj.length; index++) {
-        var _story = JSON_Obj[index];
-        await read(_story);
+function updateCategoryBadge() {
+    if (allCategories && allCategories.length > 0) {
+        const suffix = hasMore ? ' (scroll for more)' : ' (all loaded)';
+        $('#categoryCountBadge').text(`${allCategories.length} ${allCategories.length === 1 ? 'category' : 'categories'}${suffix}`).show();
+    } else {
+        $('#categoryCountBadge').hide();
     }
 }
 
+// Initial category list load
+async function categorymasterList() {
+    lastKey = '';
+    hasMore = true;
+    allCategories = [];
+
+    $('#divStory').html('');
+    $('#categoryTableHeader').show();
+    $('#catPaginationProgress').hide();
+    $('#catPaginationEndMessage').hide();
+
+    await loadMoreCategories();
+}
+
+// Load more categories with smooth pagination
+async function loadMoreCategories() {
+    if (isFetching || !hasMore) return;
+    isFetching = true;
+
+    const isPaginating = lastKey !== '';
+    if (isPaginating) {
+        const loadedCount = allCategories ? allCategories.length : 0;
+        $('#catPaginationStats').text(`Loaded ${loadedCount} categories so far, fetching more...`);
+        $('#catPaginationProgress').show();
+        $('#catPaginationEndMessage').hide();
+        $('#categoryCountBadge').html(`<span class="glyphicon glyphicon-refresh spin-icon"></span> Loading... (${loadedCount} loaded)`).show();
+    } else {
+        showLoaderImmediate();
+    }
+
+    try {
+        const url = lastKey
+            ? `${common.API_BASE_URL}/${activePathS3.category}?lastKey=${encodeURIComponent(lastKey)}`
+            : `${common.API_BASE_URL}/${activePathS3.category}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        const batch = data.data || data.categories || (Array.isArray(data) ? data : []);
+        if (batch.length > 0) {
+            allCategories = [...allCategories, ...batch];
+            await RenderStory(batch);
+        }
+
+        lastKey = data.lastKey || '';
+        if (!data.hasMore) {
+            hasMore = false;
+        }
+
+        updateCategoryBadge();
+
+        if (!hasMore && allCategories.length > 0) {
+            $('#totalCategoriesCount').text(allCategories.length);
+            $('#catPaginationEndMessage').show();
+        }
+    } catch (e) {
+        console.error("Error loading categories:", e);
+    } finally {
+        if (isPaginating) {
+            $('#catPaginationProgress').hide();
+        } else {
+            hideLoaderImmediate();
+        }
+        isFetching = false;
+        updateCategoryBadge();
+    }
+}
+
+// Render Category Cards
+async function RenderStory(categories) {
+    if (!categories || categories.length === 0) return;
+
+    var cards = [];
+    for (let index = 0; index < categories.length; index++) {
+        var story = categories[index];
+        const displayOrder = story.index_order !== undefined && story.index_order !== null && story.index_order !== '' 
+            ? story.index_order 
+            : '-';
+        const title = story.title || '-';
+        const titleHindi = story.title_hindi || '-';
+        const categorySlug = story.category || '-';
+        const itemId = story.itemId || '';
+
+        cards.push(`
+            <div class="storycard column" draggable="true" name="category" id="${escapeHtml(story.category)}">
+                <div class="col-cell col-order">
+                    <span class="drag-handle" title="Drag to reorder"><span class="glyphicon glyphicon-menu-hamburger"></span></span>
+                    <span class="order-badge">${escapeHtml(displayOrder)}</span>
+                </div>
+                <div class="col-cell col-title">
+                    <span class="cat-title-text" title="${escapeHtml(title)}">${escapeHtml(title)}</span>
+                </div>
+                <div class="col-cell col-title-hi">
+                    <span class="cat-title-hi-text" title="${escapeHtml(titleHindi)}">${escapeHtml(titleHindi)}</span>
+                </div>
+                <div class="col-cell col-slug">
+                    <code class="cat-slug-badge" title="${escapeHtml(categorySlug)}">${escapeHtml(categorySlug)}</code>
+                </div>
+                <div class="col-cell col-actions text-right">
+                    <button type="button" class="btn btn-sm btn-info btn-edit" data-category="${escapeHtml(categorySlug)}" data-title="${escapeHtml(title)}" data-titlehindi="${escapeHtml(titleHindi)}" data-itemid="${escapeHtml(itemId)}" data-order="${escapeHtml(displayOrder !== '-' ? displayOrder : '')}">
+                        <span class="glyphicon glyphicon-pencil"></span> Edit
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger btn-delete" data-category="${escapeHtml(categorySlug)}" data-itemid="${escapeHtml(itemId)}">
+                        <span class="glyphicon glyphicon-trash"></span> Delete
+                    </button>
+                </div>
+            </div>
+        `);
+    }
+
+    $('#divStory').append(cards.join(' '));
+
+    // Reattach drag-and-drop handlers once per batch
+    const cols = document.querySelectorAll('#divStory .column');
+    if (typeof addDnDHandlers === 'function') {
+        [].forEach.call(cols, addDnDHandlers);
+    }
+}
+
+// Delegated click handler for Edit and Delete buttons (safe against quotes in strings)
+$('#divStory').on('click', '.btn-edit', function (e) {
+    e.preventDefault();
+    const cname = $(this).attr('data-category');
+    const ctitle = $(this).attr('data-title');
+    const chtitle = $(this).attr('data-titlehindi');
+    const itemId = $(this).attr('data-itemid');
+    const order = $(this).attr('data-order');
+    editCat(cname, ctitle, chtitle, itemId, order);
+    $('#delete-file-modal').modal('show');
+});
+
+$('#divStory').on('click', '.btn-delete', function (e) {
+    e.preventDefault();
+    const cname = $(this).attr('data-category');
+    const itemId = $(this).attr('data-itemid');
+    deleteCat(cname, itemId);
+});
+
+// Delete category
 async function deleteCat(cname, itemId) {
-    if (confirm("Are you sure you want to delete this?")) {
-        $('body').toggleClass('loaded');
+    if (confirm(`Are you sure you want to delete category "${cname}"?`)) {
+        showLoaderImmediate();
         try {
             const categoryEndpoint = (activePathS3.category || "categories").replace(".json", "");
             const categoryDetailEndpoint = (activePathS3["category-detail"] || categoryEndpoint).replace(".json", "");
             const url = (type === "default") 
                 ? `${common.API_BASE_URL}/categories/${encodeURIComponent(cname)}`
-                : `${common.API_BASE_URL}/${categoryDetailEndpoint}/${encodeURIComponent(itemId)}`;
+                : `${common.API_BASE_URL}/${categoryDetailEndpoint}/${encodeURIComponent(itemId || cname)}`;
 
             const response = await fetch(url, {
                 method: "DELETE"
@@ -130,166 +234,25 @@ async function deleteCat(cname, itemId) {
             console.error("Error deleting category:", e);
             dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Failed to delete category' });
         } finally {
-            $('body').toggleClass('loaded');
+            hideLoaderImmediate();
         }
     }
 }
 
-
-
-
-async function categorymasterList() {
-    lastKey = '';
-    hasMore = true;
-    allCategories = [];
-
-    var storyCard = "";
-    storyCard = "<div class=\"storycardheader col-md-12 row\">";
-    storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title</h4></div>";
-    storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title Hindi</h4></div>";
-    storyCard = storyCard + "<div class=\"col-md-4\"><h4>Category</h4></div>";
-    storyCard = storyCard + "<div class=\"col-md-1\"></div>";
-    storyCard = storyCard + "<div class=\"col-md-1\"></div>";
-    storyCard = storyCard + "<hr></div>";
-    $('#divStory').html(storyCard);
-
-    await loadMoreCategories();
-}
-
-async function loadMoreCategories() {
-    if (isFetching || !hasMore) return;
-    isFetching = true;
-    $('body').toggleClass('loaded');
-    try {
-        const url = lastKey
-            ? `${common.API_BASE_URL}/${activePathS3.category}?lastKey=${encodeURIComponent(lastKey)}`
-            : `${common.API_BASE_URL}/${activePathS3.category}`;
-        const response = await fetch(url);
-        const data = await response.json();
-
-        const batch = data.data || data.categories || (Array.isArray(data) ? data : []);
-        if (batch.length > 0) {
-            allCategories = [...allCategories, ...batch];
-            await RenderStory(batch);
-        }
-        lastKey = data.lastKey || '';
-        if (!data.hasMore) {
-            hasMore = false;
-        }
-    } catch (e) {
-        console.error("Error loading categories:", e);
-    } finally {
-        $('body').toggleClass('loaded');
-        isFetching = false;
-    }
-}
-
-// function initializeScrollHandler(data) {
-//     // Load the first batch of stories
-//     loadStoriesOnScroll(data);
-
-//     // Attach scroll event listener
-//     $(window).on('scroll', async function () {
-//         // Check if the user is near the bottom of the page
-//         if ($(window).scrollTop() + $(window).height() >= $(document).height() - 100) {
-//             if (!isLoading) {
-//                 isLoading = true; // Prevent multiple triggers
-//                 await loadStoriesOnScroll(data);
-//                 isLoading = false; // Allow further loading
-//             }
-//         }
-//     });
-// }
-
-// async function loadStoriesOnScroll(data) {
-//     // Get the next batch of data
-//     const start = currentPage * pageSize;
-//     const end = start + pageSize;
-
-//     const batch = data.slice(start, end);
-//     if (batch.length === 0) return; // No more data to load
-
-//     for (const story of batch) {
-//         await read(story);
-//     }
-
-//     currentPage++; // Move to the next page
-// }
-
-async function read(story) {
-    try {
-        /*
-        const url = `${common.API_BASE_URL}/categories/${encodeURIComponent(story.category)}`;
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        const stories = data.stories || data.data || data || [];
-        let totals = stories.length;
-        */
-
-        let storyCard = `
-            <div class="storycard col-md-12 row column" draggable="true" name="category" id="${story.category}">
-                <div class="col-md-3" name="title"><h4>${story.title}</h4></div>
-                <div class="col-md-3" name="title_hindi"><h4>${story.title_hindi}</h4></div>
-                <div class="col-md-4">${story.category}</div>
-        `;
-
-        storyCard += `
-            <div class="col-md-1"><a href="#" data-toggle="modal" data-target="#delete-file-modal" onclick="editCat('${story.category}','${story.title}','${story.title_hindi}','${story.itemId || ''}')">Edit</a></div>
-            <div class="col-md-1"><a href="#" onclick="deleteCat('${story.category}','${story.itemId || ''}')">Delete</a></div>
-        `;
-
-        storyCard += `
-            <hr class="storyHr"></div>
-        `;
-        $('#divStory').append(storyCard);
-
-        // Add drag-and-drop handlers
-        const cols = document.querySelectorAll('#divStory .column');
-        [].forEach.call(cols, addDnDHandlers);
-    } catch (e) {
-        console.error(`Error reading category ${story.category}:`, e);
-    }
-}
-
-
-
-
-
-
-function focusInput(id) {
-    setTimeout(function() {
-        var el = document.getElementById(id);
-        if (el) { el.focus(); el.focus(); }
-    }, 100);
-}
-
-function showLoaderImmediate() {
-    $('body').removeClass('loaded');
-    $('#loader-wrapper').css({ visibility: 'visible', transform: 'translateY(0)', transition: 'none' });
-}
-
-function hideLoaderImmediate() {
-    $('body').addClass('loaded');
-    $('#loader-wrapper').css({ visibility: 'hidden', transform: 'translateY(-100%)', transition: 'none' });
-    $('.loader-section').css({ transition: 'none' });
-}
-
+// Save Category (Add New or Edit)
 $("#btnSave").click(function () {
-    var storyCard = "";
     var str = $("#category").val();
     var _category = str.replace(/ /gi, "-");
 
     validation(async function (cansave) {
-
-
         if (cansave.cansave) {
             if ($("#hdncategory").val() == "") {
+                // New category creation
                 var _flag = true;
                 $('.storycard').each(function () {
                     if ($(this).attr('id').toLowerCase() == _category.toLowerCase()) {
                         _flag = false;
-                        dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'This category already exist' });
+                        dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'This category already exists' });
                         $("#category").val('');
                         $("#title").val('');
                         $("#title_hindi").val('');
@@ -299,13 +262,13 @@ $("#btnSave").click(function () {
                 });
 
                 if (_flag) {
-
                     showLoaderImmediate();
                     try {
                         var JSONobjCat = {
                             category: _category,
                             title: $("#title").val(),
-                            title_hindi: $("#title_hindi").val()
+                            title_hindi: $("#title_hindi").val(),
+                            index_order: $("#index_order").val()
                         };
                         const categoryEndpoint = (activePathS3.category || "categories").replace(".json", "");
                         const response = await fetch(`${common.API_BASE_URL}/${categoryEndpoint}`, {
@@ -314,26 +277,18 @@ $("#btnSave").click(function () {
                             body: JSON.stringify(JSONobjCat)
                         });
                         const meta = await response.json();
-                        console.log(meta);
 
                         if (response.ok) {
-                            storyCard = "<div class=\"storycard col-md-12 row column\" draggable=\"true\" name=\"category\" id=\"" + _category + "\">";
-                            storyCard = storyCard + "<div class=\"col-md-3\" name=\"title\"><h4>" + $("#title").val() + "</h4></div>";
-                            storyCard = storyCard + "<div class=\"col-md-3\" name=\"title_hindi\"><h4>" + $("#title_hindi").val() + "</h4></div>";
-                            storyCard = storyCard + "<div class=\"col-md-4\">" + _category + "</div>";
-                            storyCard = storyCard + "<div class=\"col-md-1\"><a href=\"#\" data-toggle=\"modal\" data-target=\"#delete-file-modal\" onclick=\"editCat('" + _category + "','" + $("#title").val() + "','" + $("#title_hindi").val() + "')\">Edit</a></div>";
-                            storyCard = storyCard + "<div class=\"col-md-1\"><a href=\"#\" onclick=\"deleteCat('" + _category + "',this)\">Delete</a></div>";
-                            storyCard = storyCard + "<hr class=\"col-md-12 bg-info\"></div>";
-                            $('#divStory').append(storyCard);
-                            var cols = document.querySelectorAll('#divStory .column');
-                            [].forEach.call(cols, addDnDHandlers);
-
                             var a = [];
                             await WriteS3Bucket(a, activePathS3["category-index"] + _category + ".json");
 
-                            const options = { title: '', message: 'Category Saved succssfully', detail: '' };
+                            const options = { title: '', message: 'Category Saved successfully', detail: '' };
                             dialog.showMessageBox(null, options);
                             $('#delete-file-modal').modal('hide');
+                            $("#category").val('');
+                            $("#title").val('');
+                            $("#title_hindi").val('');
+                            $("#hdncategory").val('');
                             categorymasterList(); // Refresh list
                         } else {
                             dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Error saving category: ' + (meta.msg || meta.error || 'Unknown error') });
@@ -346,18 +301,15 @@ $("#btnSave").click(function () {
                     } finally {
                         hideLoaderImmediate();
                     }
-                    $("#category").val('');
-                    $("#title").val('');
-                    $("#title_hindi").val('');
-                    $("#hdncategory").val('');
                 }
-            }
-            else {
+            } else {
+                // Existing category update
                 showLoaderImmediate();
                 var JSONobjCat = {
                     category: _category,
                     title: $("#title").val(),
-                    title_hindi: $("#title_hindi").val()
+                    title_hindi: $("#title_hindi").val(),
+                    index_order: $("#index_order").val()
                 };
 
                 try {
@@ -376,7 +328,7 @@ $("#btnSave").click(function () {
                     const meta = await response.json();
 
                     if (response.ok) {
-                        const options = { title: '', message: 'Category Updated succssfully', detail: '' };
+                        const options = { title: '', message: 'Category Updated successfully', detail: '' };
                         dialog.showMessageBox(null, options);
                         $('#delete-file-modal').modal('hide');
                         $("#category").val('');
@@ -385,153 +337,80 @@ $("#btnSave").click(function () {
                         $("#hdncategory").val('');
                         categorymasterList(); // Refresh list
                     } else {
-                            dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Error updating category: ' + (meta.msg || meta.error || 'Unknown error') });
-                            focusInput('category');
-                        }
-                    } catch (e) {
-                        console.error("Error updating category:", e);
-                        dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Failed to update category' });
-                        focusInput('category');
-                } finally {
-                        hideLoaderImmediate();
+                        dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Error updating category: ' + (meta.msg || meta.error || 'Unknown error') });
+                        focusInput('title');
                     }
-                    $("#category").val('');
-                    $("#title").val('');
-                    $("#title_hindi").val('');
-                    $("#hdncategory").val('');
-                    focusInput('category');
+                } catch (e) {
+                    console.error("Error updating category:", e);
+                    dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Failed to update category' });
+                    focusInput('title');
+                } finally {
+                    hideLoaderImmediate();
+                }
             }
-
-
-            // $('.storycard').each(function () {
-            //     var _currentArray = this;
-            //     var JSONObj = {};
-            //     JSONObj[$(this).attr('name')] = $(this).attr('id');
-            //     $(_currentArray).find('h4').each(function () {
-            //         JSONObj[$(this).closest('div').attr('name')] = $(this).text();
-            //     });
-            //     finalJson.push(JSONObj);
-            // });
-
-            //fs.writeFile(file, JSON.stringify(finalJson), function (err) {
-            //    if (err) {
-            //        return console.log(err);
-            //    }
-            //    console.log("The file was saved!");
-            //});
-            console.log(new Date());
-
-            //WriteS3Bucket(finalJson, "category.json").then(meta => {
-            //    console.log(meta); // {"metadata": "for: test.png"}
-            //});
-
-
-
-            //(async () => {
-            //    const meta = await WriteS3Bucket(finalJson, "category.json");
-            //    console.log(meta); // {"metadata": "for: test.png"}
-            //})();
-
-            //const result = WriteS3Bucket(finalJson, "category.json");
-            //debugger;
-            //console.log(result.PromiseResult);
-            //WriteS3Bucket(finalJson, "category.json", function (tt) {
-            //    console.log(tt);
-            //    console.log("The file was saved!");
-
-            //    const options = { title: '', message: 'Category Saved succssfully', detail: '' };
-            //    try {
-            //        dialog.showMessageBox(null, options);
-            //    } catch (e) {
-            //        console.log(e);
-            //        dialog.showMessageBox(null, options);
-            //    }
-
-            //});
-            console.log("Second", new Date());
-        }
-        else {
+        } else {
             dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: cansave.msg });
-            $("#category").val('');
-            $("#title").val('');
-            $("#title_hindi").val('');
-            focusInput('category');
         }
     });
 });
 
+// Add New Category click
 $("#btnAddcat").click(function () {
     $("#category").val('');
     $("#title").val('');
     $("#title_hindi").val('');
     $("#hdncategory").val('');
     $("#hdnitemId").val('');
-    $('#delete-file-modal').find('.modal-title').text("Add New Category");
-    $('#delete-file-modal').find('#CategoryEdit').show();
+    $('#modalTitleText').text("Add New Category");
+    $('#CategoryEdit').show();
+    $('#index_order').val('');
     focusInput('category');
 });
 
+// Modal cancel/close click
 $("#btnClose").click(function () {
     $('#delete-file-modal').modal('hide');
 });
 
-
-function editCat(cname, ctitle, chtitle, itemId) {
-    $('#delete-file-modal').find('.modal-title').text("Edit Category");
-    $('#delete-file-modal').find('#CategoryEdit').hide();
-    $('#delete-file-modal').find('#category').val(cname);
-    $('#delete-file-modal').find('#hdncategory').val(cname);
-    $('#delete-file-modal').find('#hdnitemId').val(itemId || '');
-    $('#delete-file-modal').find('#title').val(ctitle);
-    $('#delete-file-modal').find('#title_hindi').val(chtitle);
+// Prefill form for editing category
+function editCat(cname, ctitle, chtitle, itemId, order) {
+    $('#modalTitleText').text("Edit Category");
+    $('#CategoryEdit').hide();
+    $('#category').val(cname);
+    $('#hdncategory').val(cname);
+    $('#hdnitemId').val(itemId || '');
+    $('#title').val(ctitle);
+    $('#title_hindi').val(chtitle);
+    $('#index_order').val(order !== undefined && order !== null ? order : '');
     focusInput('title');
 }
 
-// function saveUPre() {
-//     let file = path.join(pathName, activePathS3["category"]);
-//     var finalJson = [];
-//     $('.storycard').each(function () {
-//         var _currentArray = this;
-//         var JSONObj = {};
-//         JSONObj[$(this).attr('name')] = $(this).attr('id');
-//         $(_currentArray).find('h4').each(function () {
-//             JSONObj[$(this).closest('div').attr('name')] = $(this).text();
-//         });
-//         finalJson.push(JSONObj);
-//     });
-//     if (finalJson.length == 1) {
-//         finalJson = finalJson[0];
-//     }
-//     $('body').toggleClass('loaded');
-//     WriteS3Bucket(finalJson, activePathS3["category"], function (tt) {
-//         console.log(tt);
-//         console.log("The file was saved!");
-//     });
-//     $('body').toggleClass('loaded');
-//     //fs.writeFile(file, JSON.stringify(finalJson), function (err) {
-//     //    if (err) {
-//     //        return console.log(err);
-//     //    }
-//     //});
-// }
-
+// Input validation
 function validation(cb) {
     var cansave = true;
     var msg = "";
 
-    var item = { "Category": $.trim($('#divModel').find('#category').val()), "title": $.trim($('#divModel').find('#title').val()), "title-hindi": $.trim($('#divModel').find('#title_hindi').val()) }
+    var item = {
+        "Category": $.trim($('#divModel').find('#category').val()),
+        "title": $.trim($('#divModel').find('#title').val()),
+        "title-hindi": $.trim($('#divModel').find('#title_hindi').val()),
+        "index_order": $.trim($('#divModel').find('#index_order').val())
+    };
+
     if (item["Category"] == "") {
-        msg = "Please Enter Category";
+        msg = "Please Enter Category Slug";
+        cansave = false;
+    } else if (item["title"] == "") {
+        msg = "Please Enter Title (English)";
+        cansave = false;
+    } else if (item["title-hindi"] == "") {
+        msg = "Please Enter Title (Hindi)";
+        cansave = false;
+    } else if (item["index_order"] == "") {
+        msg = "Please Enter Display Order";
         cansave = false;
     }
-    if (item["title"] == "") {
-        msg = "Please Enter title";
-        cansave = false;
-    }
-    if (item["title-hindi"] == "") {
-        msg = "Please Enter Hindi title";
-        cansave = false;
-    }
+
     var result = { "cansave": cansave, "msg": msg };
     cb(result);
 }
@@ -540,13 +419,23 @@ function validation(cb) {
 $("#btnSearch").click(function () {
     SearchOnCategory();
 });
+
 $("#btnClearSearch").click(function () {
     ClearSearchOnCategory();
 });
+
+$('#txtSearchCategory').on('keypress', function (e) {
+    if (e.which === 13) {
+        SearchOnCategory();
+    }
+});
+
 $('#txtSearchCategory').on('keyup', function () {
     const query = $('#txtSearchCategory').val().trim();
-    if (query.length >= 4) {
+    if (query.length >= 3) {
         SearchOnCategory();
+    } else if (query.length === 0) {
+        ClearSearchOnCategory();
     }
 });
 
@@ -564,32 +453,37 @@ async function SearchOnCategory() {
         filtered = allCategories;
     }
 
-    var storyCard = "";
-    storyCard = "<div class=\"storycardheader col-md-12 row\">";
-    storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title</h4></div>";
-    storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title Hindi</h4></div>";
-    storyCard = storyCard + "<div class=\"col-md-4\"><h4>Category</h4></div>";
-    storyCard = storyCard + "<div class=\"col-md-1\"></div>";
-    storyCard = storyCard + "<div class=\"col-md-1\"></div>";
-    storyCard = storyCard + "<hr></div>";
-    $('#divStory').html(storyCard);
-
-    await RenderStory(filtered);
+    if (filtered.length > 0) {
+        $('#categoryTableHeader').show();
+        $('#divStory').html('');
+        await RenderStory(filtered);
+        $('#categoryCountBadge').text(`${filtered.length} result${filtered.length === 1 ? '' : 's'}`).show();
+        $('#catPaginationProgress').hide();
+        $('#catPaginationEndMessage').hide();
+    } else {
+        $('#categoryTableHeader').hide();
+        $('#categoryCountBadge').hide();
+        $('#divStory').html(`
+            <div class="empty-state-card">
+                <div class="empty-state-icon"><span class="glyphicon glyphicon-search"></span></div>
+                <div class="empty-state-title">No Categories Found</div>
+                <div class="empty-state-desc">No category matched "<strong>${escapeHtml(query)}</strong>".</div>
+            </div>
+        `);
+        $('#catPaginationProgress').hide();
+        $('#catPaginationEndMessage').hide();
+    }
 }
 
 async function ClearSearchOnCategory() {
     $('#txtSearchCategory').val('');
-    
-    var storyCard = "";
-    storyCard = "<div class=\"storycardheader col-md-12 row\">";
-    storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title</h4></div>";
-    storyCard = storyCard + "<div class=\"col-md-3\"><h4>Title Hindi</h4></div>";
-    storyCard = storyCard + "<div class=\"col-md-4\"><h4>Category</h4></div>";
-    storyCard = storyCard + "<div class=\"col-md-1\"></div>";
-    storyCard = storyCard + "<div class=\"col-md-1\"></div>";
-    storyCard = storyCard + "<hr></div>";
-    $('#divStory').html(storyCard);
-
+    $('#categoryTableHeader').show();
+    $('#divStory').html('');
     await RenderStory(allCategories);
+    updateCategoryBadge();
+    if (!hasMore && allCategories.length > 0) {
+        $('#totalCategoriesCount').text(allCategories.length);
+        $('#catPaginationEndMessage').show();
+    }
 }
 //#endregion

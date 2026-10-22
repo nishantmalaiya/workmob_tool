@@ -208,7 +208,7 @@
     "class": "col-md-6",
     "type": "select",
     "label": "Location"
-  }, 
+  },
   {
     "name": "streetAddress",
     "class": "col-md-6",
@@ -384,6 +384,12 @@
     "label": "Instagarm"
   },
   {
+    "name": "instagram_social_landscape",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Instagram Social Landscape"
+  },
+  {
     "name": "whatsapp",
     "class": "col-md-6",
     "type": "text",
@@ -408,6 +414,12 @@
     "label": "Share Count"
   },
   {
+    "name": "index_order",
+    "class": "col-md-6",
+    "type": "text",
+    "label": "Index Order"
+  },
+  {
     "name": "show_contact",
     "class": "col-md-6",
     "type": "checkbox",
@@ -425,7 +437,6 @@
     "type": "checkbox",
     "label": "Consent form Received"
   },
-
   {
     "name": "",
     "class": "col-md-12",
@@ -473,7 +484,7 @@
     "class": "col-md-3",
     "type": "checkbox",
     "label": "Namaste"
-  } ,
+  },
   {
     "name": "storiespromotion",
     "class": "col-md-3",
@@ -485,12 +496,11 @@
     "class": "col-md-3",
     "type": "checkbox",
     "label": "Hide"
-  } ,
+  },
   {
     "name": "storiespriority",
     "class": "col-md-3",
     "type": "checkbox",
     "label": "Priority"
-  } 
- 
+  }
 ]

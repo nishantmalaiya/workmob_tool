@@ -6,72 +6,380 @@ const {
     dialog,
     Menu,
     MenuItem,
-    electron,
     globalShortcut,
     shell,
-    path,
-    buffer,
-    select2,
 } = require("electron");
-const remoteMain = require('@electron/remote/main');
-remoteMain.initialize();
-//let common = require('./Js/config');
-//const remoteMain = require('@electron/remote/main');
-//remoteMain.initialize();
-const url = require("url");
+const fs = require("fs");
 const paths = require("path");
+const url = require("url");
+const remoteMain = require("@electron/remote/main");
+
+remoteMain.initialize();
+
 let win;
 global.sharedObj = {
     pathName: "C:\\WM_Json",
     currentStory: "default",
-    //S3filepath: "stories_workmob/confjson/", //"stories_workmob/confjson/", //config
-     S3filepath: "stories_workmob/config/", //"stories_workmob/confjson/", //config
+    S3filepath: "stories_workmob/config/",
 };
 
 let child;
 let childLogin;
 
+function ShowPage(pageName) {
+    if (win && !win.isDestroyed()) {
+        win.loadFile(pageName);
+    }
+}
+
+function buildAppMenu() {
+    const activeProfile = global.sharedObj.currentStory || "default";
+
+    const template = [
+        {
+            label: "Stories",
+            accelerator: "CmdOrCtrl+1",
+            click: function () {
+                ShowPage("Stories.html");
+            },
+        },
+        {
+            label: "Categories",
+            accelerator: "CmdOrCtrl+2",
+            click: function () {
+                ShowPage("categories.html");
+            },
+        },
+        {
+            label: "Location Detail",
+            accelerator: "CmdOrCtrl+3",
+            click: function () {
+                ShowPage("locationdetail.html");
+            },
+        },
+        {
+            label: "Blog Home",
+            accelerator: "CmdOrCtrl+4",
+            click: function () {
+                ShowPage("bloghome.html");
+            },
+        },
+        {
+            label: "Stories – Top",
+            accelerator: "CmdOrCtrl+5",
+            click: function () {
+                ShowPage("stories_top.html");
+            },
+        },
+        {
+            label: "Trending",
+            accelerator: "CmdOrCtrl+6",
+            click: function () {
+                ShowPage("trending.html");
+            },
+        },
+        {
+            label: "Mobile Home",
+            accelerator: "CmdOrCtrl+7",
+            click: function () {
+                ShowPage("mobile_home_screen.html");
+            },
+        },
+        {
+            label: "Channels",
+            submenu: [
+                {
+                    label: "Gyan",
+                    click: function () {
+                        ShowPage("pages/gyan.html");
+                    },
+                },
+                {
+                    label: "Hope",
+                    click: function () {
+                        ShowPage("pages/hope.html");
+                    },
+                },
+                {
+                    label: "Namaste",
+                    click: function () {
+                        ShowPage("pages/namaste.html");
+                    },
+                },
+                {
+                    label: "Promotion",
+                    click: function () {
+                        ShowPage("pages/promotion.html");
+                    },
+                },
+                {
+                    label: "Vocal for Local",
+                    click: function () {
+                        ShowPage("pages/Vocal4Local.html");
+                    },
+                },
+            ],
+        },
+        {
+            label: "Tools",
+            submenu: [
+                {
+                    label: "Advance Search",
+                    click: function () {
+                        ShowPage("pages/AdvanceSearch.html");
+                    },
+                },
+                {
+                    label: "Update Story Heading",
+                    click: function () {
+                        ShowPage("pages/UpdateHeading.html");
+                    },
+                },
+                { type: "separator" },
+                {
+                    label: "Product Owner",
+                    click: function () {
+                        ShowPage("pages/productowner.html");
+                    },
+                },
+                {
+                    label: "Top Product",
+                    click: function () {
+                        ShowPage("pages/topproduct.html");
+                    },
+                },
+            ],
+        },
+        {
+            label: "Settings",
+            submenu: [
+                {
+                    label: "Config",
+                    click: function () {
+                        ShowPage("UpdateConfig.html");
+                    },
+                },
+                {
+                    label: "Category Master",
+                    click: function () {
+                        ShowPage("category_master.html");
+                    },
+                },
+                {
+                    label: "Sub-Category Master",
+                    click: function () {
+                        ShowPage("sub-category_master.html");
+                    },
+                },
+                { type: "separator" },
+                {
+                    label: "Users",
+                    click: function () {
+                        ShowPage("pages/Instructor.html");
+                    },
+                },
+                {
+                    label: "Location",
+                    click: function () {
+                        ShowPage("pages/location.html");
+                    },
+                },
+                {
+                    label: "Organisation",
+                    click: function () {
+                        ShowPage("pages/organisation.html");
+                    },
+                },
+            ],
+        },
+        {
+            label: "Switch",
+            submenu: [
+                {
+                    label: "Default",
+                    type: "radio",
+                    checked: activeProfile === "default",
+                    click: () => {
+                        global.sharedObj.currentStory = "default";
+                        buildAppMenu();
+                        win.reload();
+                    },
+                },
+                {
+                    label: "Audio",
+                    type: "radio",
+                    checked: activeProfile === "audio",
+                    click: () => {
+                        global.sharedObj.currentStory = "audio";
+                        buildAppMenu();
+                        win.reload();
+                    },
+                },
+                {
+                    label: "Gyan",
+                    type: "radio",
+                    checked: activeProfile === "gyan",
+                    click: () => {
+                        global.sharedObj.currentStory = "gyan";
+                        buildAppMenu();
+                        win.reload();
+                    },
+                },
+                {
+                    label: "Hope",
+                    type: "radio",
+                    checked: activeProfile === "hope",
+                    click: () => {
+                        global.sharedObj.currentStory = "hope";
+                        buildAppMenu();
+                        win.reload();
+                    },
+                },
+                {
+                    label: "Namaste",
+                    type: "radio",
+                    checked: activeProfile === "namaste",
+                    click: () => {
+                        global.sharedObj.currentStory = "namaste";
+                        buildAppMenu();
+                        win.reload();
+                    },
+                },
+                {
+                    label: "Promotion",
+                    type: "radio",
+                    checked: activeProfile === "promotion",
+                    click: () => {
+                        global.sharedObj.currentStory = "promotion";
+                        buildAppMenu();
+                        win.reload();
+                    },
+                },
+                {
+                    label: "Product",
+                    type: "radio",
+                    checked: activeProfile === "product",
+                    click: () => {
+                        global.sharedObj.currentStory = "product";
+                        buildAppMenu();
+                        win.reload();
+                    },
+                },
+            ],
+        },
+        {
+            label: "View",
+            submenu: [
+                {
+                    label: "Reload",
+                    accelerator: "CmdOrCtrl+R",
+                    click: () => {
+                        if (win && !win.isDestroyed()) win.reload();
+                    },
+                },
+                {
+                    label: "Force Reload",
+                    accelerator: "CmdOrCtrl+Shift+R",
+                    click: () => {
+                        if (win && !win.isDestroyed()) win.webContents.reloadIgnoringCache();
+                    },
+                },
+                { type: "separator" },
+                {
+                    label: "Toggle Full Screen",
+                    accelerator: "F11",
+                    click: () => {
+                        if (win && !win.isDestroyed()) win.setFullScreen(!win.isFullScreen());
+                    },
+                },
+                {
+                    label: "Toggle Developer Tools",
+                    accelerator: "F12",
+                    click: () => {
+                        if (win && !win.isDestroyed()) win.webContents.toggleDevTools();
+                    },
+                },
+            ],
+        },
+        {
+            label: "Help",
+            submenu: [
+                {
+                    label: "Workmob Website",
+                    accelerator: "CmdOrCtrl+Shift+H",
+                    click: function () {
+                        shell.openExternal("https://workmob.com");
+                    },
+                },
+                { type: "separator" },
+                {
+                    label: "Home",
+                    click: function () {
+                        ShowPage("index.html");
+                    },
+                },
+                {
+                    label: "Utility",
+                    click: function () {
+                        ShowPage("Utility.html");
+                    },
+                },
+                { type: "separator" },
+                {
+                    role: "window",
+                    submenu: [{ role: "minimize" }, { role: "close" }],
+                },
+            ],
+        },
+    ];
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+}
+
 app.on("ready", function () {
-    if (process.argv.includes('--generate-pdf')) {
-        console.log('Generating PDF...');
+    if (process.argv.includes("--generate-pdf")) {
+        console.log("Generating PDF...");
         win = new BrowserWindow({ show: false });
-        const htmlPath = paths.join(__dirname, 'addStory_flow.html');
+        const htmlPath = paths.join(__dirname, "addStory_flow.html");
         win.loadFile(htmlPath);
-        win.webContents.on('did-finish-load', () => {
+        win.webContents.on("did-finish-load", () => {
             setTimeout(() => {
-                win.webContents.printToPDF({
-                    printBackground: true,
-                    landscape: false,
-                    pageSize: 'A4',
-                    margins: { top: 0, bottom: 0, left: 0, right: 0 }
-                }).then(data => {
-                    const pdfPath = paths.join(__dirname, 'addStory_flow.pdf');
-                    fs.writeFile(pdfPath, data, (error) => {
-                        if (error) {
-                            console.error('Failed to write PDF:', error);
-                            process.exit(1);
-                        }
-                        console.log(`Successfully created PDF: ${pdfPath}`);
+                win.webContents
+                    .printToPDF({
+                        printBackground: true,
+                        landscape: false,
+                        pageSize: "A4",
+                        margins: { top: 0, bottom: 0, left: 0, right: 0 },
+                    })
+                    .then((data) => {
+                        const pdfPath = paths.join(__dirname, "addStory_flow.pdf");
+                        fs.writeFile(pdfPath, data, (error) => {
+                            if (error) {
+                                console.error("Failed to write PDF:", error);
+                                process.exit(1);
+                            }
+                            console.log(`Successfully created PDF: ${pdfPath}`);
+                            app.quit();
+                        });
+                    })
+                    .catch((error) => {
+                        console.error("Failed to generate PDF:", error);
                         app.quit();
                     });
-                }).catch(error => {
-                    console.error('Failed to generate PDF:', error);
-                    app.quit();
-                });
             }, 3000);
         });
         return;
     }
-    //mona
-    // if(global.sharedObj.S3filepath=="stories_workmob/config/")
-    // {
-    //     dialog.showErrorBox("Caution","Connected to Live json");
-    // }
 
     win = new BrowserWindow({
-        width: 800,
-        height: 600,
+        width: 1400,
+        height: 900,
+        minWidth: 1024,
+        minHeight: 700,
         show: false,
+        backgroundColor: "#f1f5f9",
+        title: "Workmob Admin Studio",
         webPreferences: {
             nodeIntegration: true,
             webSecurity: true,
@@ -81,9 +389,6 @@ app.on("ready", function () {
     });
 
     remoteMain.enable(win.webContents);
-
-    // win.maximize();
-    // win.loadFile('Stories.html');
 
     win.loadURL(
         url.format({
@@ -97,9 +402,13 @@ app.on("ready", function () {
     session.defaultSession.clearStorageData();
 
     childLogin = new BrowserWindow({
-        width: 400,
-        height: 350,
+        width: 440,
+        height: 380,
         frame: false,
+        resizable: false,
+        center: true,
+        backgroundColor: "#ffffff",
+        title: "Workmob Admin Login",
         webPreferences: {
             nodeIntegration: true,
             enableRemoteModule: true,
@@ -107,6 +416,7 @@ app.on("ready", function () {
             contextIsolation: false,
         },
     });
+
     childLogin.loadURL(
         url.format({
             pathname: paths.join(__dirname, "pages/login.html"),
@@ -116,28 +426,32 @@ app.on("ready", function () {
 
     remoteMain.enable(childLogin.webContents);
 
-    // childLogin.openDevTools();
     ipcMain.on("entry-accepted", (event, arg) => {
         if (arg == "ping") {
             win.maximize();
             win.show();
             childLogin.hide();
-        }
-        else if (arg == "ExitApp") {
+        } else if (arg == "ExitApp") {
             app.quit();
         }
     });
+
     ipcMain.on("input-broadcast", (evt, data) => {
         child = new BrowserWindow({
             modal: true,
             parent: win,
-            width: 1200,
-            height: 800,
+            title: "Story Details - Workmob",
+            width: 1300,
+            height: 850,
+            minWidth: 1024,
+            minHeight: 700,
+            backgroundColor: "#f1f5f9",
             autoHideMenuBar: true,
             webPreferences: {
                 nodeIntegration: true,
                 contextIsolation: false,
-                devTools: false,
+                enableRemoteModule: true,
+                devTools: true,
             },
         });
         remoteMain.enable(child.webContents);
@@ -165,8 +479,9 @@ app.on("ready", function () {
         });
 
         child.once("ready-to-show", () => {
-            // child.webContents.toggleDevTools();
+            child.webContents.toggleDevTools();
         });
+
         // Fire after document + scripts load so ipcRenderer.on("receiveSlug") is registered.
         child.webContents.once("did-finish-load", () => {
             setTimeout(sendReceiveSlug, 120);
@@ -174,243 +489,25 @@ app.on("ready", function () {
 
         child.loadFile(data.pagename);
     });
-    ipcMain.on("closeChild", (evt, data) => {
-        child.close();
+
+    ipcMain.on("closeChild", () => {
+        if (child && !child.isDestroyed()) {
+            child.close();
+        }
     });
 
-    const template = [
-        {
-            label: "STORIES",
-            click: function () {
-                ShowPage("Stories.html");
-            },
-        },
-        {
-            label: "CATEGORIES",
-            click: function () {
-                ShowPage("categories.html");
-            },
-        },
-        {
-            label: "BLOG HOME",
-            click: function () {
-                ShowPage("bloghome.html");
-            },
-        },
-        {
-            label: " STORIES – TOP",
-            click: function () {
-                ShowPage("stories_top.html");
-            },
-        },
-        {
-            label: "TRENDING",
-            click: function () {
-                ShowPage("trending.html");
-            },
-        },
-        {
-            label: "MOBILE HOME",
-            click: function () {
-                ShowPage("mobile_home_screen.html");
-            },
-        },
-        {
-            label: "GYAN",
-            click: function () {
-                ShowPage("pages/gyan.html");
-            },
-        },
-        {
-            label: "HOPE",
-            click: function () {
-                ShowPage("pages/hope.html");
-            },
-        },
-        {
-            label: "NAMASTE",
-            click: function () {
-                ShowPage("pages/namaste.html");
-            },
-        },
-        {
-            label: "PROMOTION",
-            click: function () {
-                ShowPage("pages/promotion.html");
-            },
-        },
-        {
-            label: "VOCAL FOR LOCAL",
-            click: function () {
-                ShowPage("pages/Vocal4Local.html");
-            },
-        },
-        {
-            label: "ADVANCE SEARCH",
-            click: function () {
-                ShowPage("pages/AdvanceSearch.html");
-            },
-        },
-        {
-            label: "UPDATE STORY HEADING",
-            click: function () {
-                ShowPage("pages/UpdateHeading.html");
-            },
-        },
-        {
-            label: "SETTINGS",
-            submenu: [
-                {
-                    label: "CONFIG",
-                    click: function () {
-                        ShowPage("UpdateConfig.html");
-                    },
-                },
-                {
-                    label: "CATEGORY MASTER",
-                    click: function () {
-                        ShowPage("category_master.html");
-                    },
-                },
-                {
-                    label: "SUB-CATEGORY MASTER",
-                    click: function () {
-                        ShowPage("sub-category_master.html");
-                    },
-                },
-                {
-                    label: "USERS",
-                    click: function () {
-                        ShowPage("pages/Instructor.html");
-                    }
-                },
-                {
-                    label: "LOCATION",
-                    click: function () {
-                        ShowPage("pages/location.html");
-                    }
-                },
-                {
-                    label: "ORGANISATION",
-                    click: function () {
-                        ShowPage("pages/organisation.html");
-                    }
-                },
-            ]
-        },
-        {
-            label: "SWITCH",
-            submenu: [
-                {
-                    label: "Default",
-                    click: () => {
-                        global.sharedObj.currentStory = "default";
-                        win.reload();
-                    },
-                },
-                {
-                    label: "Audio",
-                    click: () => {
-                        global.sharedObj.currentStory = "audio";
-                        win.reload();
-                    },
-                },
-                {
-                    label: "Gyan",
-                    click: () => {
-                        global.sharedObj.currentStory = "gyan";
-                        win.reload();
-                    },
-                },
-                {
-                    label: "Hope",
-                    click: () => {
-                        global.sharedObj.currentStory = "hope";
-                        win.reload();
-                    },
-                },
-                {
-                    label: "Namaste",
-                    click: () => {
-                        global.sharedObj.currentStory = "namaste";
-                        win.reload();
-                    },
-                },
-                {
-                    label: "Promotion",
-                    click: () => {
-                        global.sharedObj.currentStory = "promotion";
-                        win.reload();
-                    },
-                },
-                {
-                    label: "Product",
-                    click: () => {
-                        global.sharedObj.currentStory = "product";
-                        win.reload();
-                    },
-                }
-
-            ],
-        },
-        {
-            label: "PRODUCT OWNER",
-            click: function () {
-                ShowPage("pages/productowner.html");
-            },
-        },
-        {
-            label: "TOP PRODUCT",
-            click: function () {
-                ShowPage("pages/topproduct.html");
-            },
-        }
-
-        , {
-            label: "HELP",
-            submenu: [
-                {
-                    label: "Wrokmob",
-                    click: function () {
-                        shell.openExternal("http://workmob.com");
-                    },
-                    accelerator: "CmdOrCtrl + Shift + H",
-                },
-                {
-                    label: "Toggle Dev Tools",
-                    accelerator: "F12",
-                    click: () => {
-                        win.webContents.toggleDevTools();
-                    },
-                },
-                {
-                    label: "Home",
-                    click: function () {
-                        ShowPage("index.html");
-                    },
-                },
-                {
-                    label: "Utility",
-                    click: function () {
-                        ShowPage("Utility.html");
-                    },
-                },
-                {
-                    role: "window",
-                    submenu: [{ role: "minimize" }, { role: "close" }],
-                },
-            ],
-        }
-    ];
-    const menu = Menu.buildFromTemplate(template);
-    Menu.setApplicationMenu(menu);
+    buildAppMenu();
 
     globalShortcut.register("F12", function () {
-        win.webContents.toggleDevTools();
+        if (win && !win.isDestroyed()) {
+            win.webContents.toggleDevTools();
+        }
     });
 
     globalShortcut.register("Alt+1", function () {
-        win.show();
+        if (win && !win.isDestroyed()) {
+            win.show();
+        }
     });
 });
 
@@ -422,11 +519,10 @@ app.on("window-all-closed", () => {
 
 app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
+        if (win && !win.isDestroyed()) {
+            win.show();
+        }
     }
 });
 
-function ShowPage(pageName) {
-    win.loadFile(pageName);
-}
 app.commandLine.appendSwitch("disable-http-cache");
