@@ -17,11 +17,148 @@ const remoteMain = require("@electron/remote/main");
 remoteMain.initialize();
 
 let win;
+const SWITCH_COLORS = {
+    default: "#8178FF",
+    audio: "#72BFFF",
+    gyan: "#FFA6D2",
+    hope: "#30334D",
+    namaste: "#FF72B6",
+    promotion: "#8178FF",
+    product: "#72BFFF",
+};
+
 global.sharedObj = {
     pathName: "C:\\WM_Json",
     currentStory: "default",
     S3filepath: "stories_workmob/config/",
+    themeColor: SWITCH_COLORS.default,
 };
+
+function applyThemeColorToWebContents(contents, color) {
+    if (!contents || contents.isDestroyed()) return;
+    const targetColor = color || global.sharedObj.themeColor || SWITCH_COLORS.default;
+    const css = `
+        body {
+            background-color: ${targetColor} !important;
+            transition: background-color 0.25s ease;
+        }
+    `;
+    contents.insertCSS(css).catch(() => {});
+    contents.executeJavaScript(`
+        if (document.body) {
+            document.body.style.setProperty('background-color', '${targetColor}', 'important');
+        }
+    `).catch(() => {});
+}
+
+function injectAppHeaderStrip(contents) {
+    if (!contents || contents.isDestroyed()) return;
+
+    let pkg = { name: "WorkmobStoryToolDyanomoDB", author: "Nishant Malaiya", version: "5.2.0" };
+    try {
+        pkg = require("./package.json");
+    } catch (e) {}
+
+    const toolName = pkg.productName || pkg.name || "WorkmobStoryToolDyanomoDB";
+    const toolAuthor = pkg.author || "Nishant Malaiya";
+    const buildVersion = pkg.version || "5.2.0";
+    const activeProfile = (global.sharedObj && global.sharedObj.currentStory) ? global.sharedObj.currentStory : "default";
+
+    const jsCode = `
+        (function() {
+            var existing = document.getElementById('workmob-top-ui-strip');
+            if (existing) {
+                var badge = existing.querySelector('#workmob-strip-profile-badge');
+                if (badge) badge.textContent = '${activeProfile}'.toUpperCase();
+                return;
+            }
+
+            var strip = document.createElement('div');
+            strip.id = 'workmob-top-ui-strip';
+            strip.innerHTML = \`
+                <div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
+                    <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; letter-spacing: 0.3px; color: #ffffff;">
+                        <span class="glyphicon glyphicon-hdd" style="font-size: 14px; color: #93c5fd;"></span>
+                        <span>${toolName}</span>
+                    </div>
+                    <span style="color: rgba(255,255,255,0.4);">|</span>
+                    <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: #e2e8f0;">
+                        <span class="glyphicon glyphicon-user" style="font-size: 11px; color: #bfdbfe;"></span>
+                        <span>Author: <strong style="color: #ffffff;">${toolAuthor}</strong></span>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+                    <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #e2e8f0;">
+                        <span class="glyphicon glyphicon-tags" style="font-size: 11px; color: #bfdbfe;"></span>
+                        <span>Build Version:</span>
+                        <span style="background: rgba(255, 255, 255, 0.22); color: #ffffff; padding: 2px 8px; border-radius: 12px; font-weight: 700; font-size: 11px; border: 1px solid rgba(255, 255, 255, 0.3);">v${buildVersion}</span>
+                    </div>
+                    <span style="color: rgba(255,255,255,0.4);">|</span>
+                    <div style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: #e2e8f0;">
+                        <span>Switch:</span>
+                        <span id="workmob-strip-profile-badge" style="background: #ffffff; color: #1e40af; padding: 2px 8px; border-radius: 10px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">${activeProfile}</span>
+                    </div>
+                </div>
+            \`;
+
+            strip.style.cssText = \`
+                position: sticky;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 999999;
+                background: linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%);
+                color: #ffffff;
+                box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25), 0 1px 2px rgba(37, 99, 235, 0.3);
+                padding: 6px 20px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 8px;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                margin: -20px -24px 14px -24px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            \`;
+
+            if (document.body) {
+                var computed = window.getComputedStyle(document.body);
+                var padTop = parseInt(computed.paddingTop) || 0;
+                var padLeft = parseInt(computed.paddingLeft) || 0;
+                var padRight = parseInt(computed.paddingRight) || 0;
+                if (padTop || padLeft || padRight) {
+                    strip.style.margin = '-' + padTop + 'px -' + padRight + 'px 14px -' + padLeft + 'px';
+                }
+                document.body.insertBefore(strip, document.body.firstChild);
+            }
+        })();
+    `;
+
+    contents.executeJavaScript(jsCode).catch(() => {});
+}
+
+function switchProfile(profile, color) {
+    const targetColor = color || SWITCH_COLORS[profile] || "#8178FF";
+    global.sharedObj.currentStory = profile;
+    global.sharedObj.themeColor = targetColor;
+    buildAppMenu();
+    if (win && !win.isDestroyed()) {
+        win.setBackgroundColor(targetColor);
+        applyThemeColorToWebContents(win.webContents, targetColor);
+        injectAppHeaderStrip(win.webContents);
+        win.reload();
+    }
+}
+
+function setThemeColorOnly(color) {
+    if (!color) return;
+    global.sharedObj.themeColor = color;
+    buildAppMenu();
+    if (win && !win.isDestroyed()) {
+        win.setBackgroundColor(color);
+        applyThemeColorToWebContents(win.webContents, color);
+    }
+}
 
 let child;
 let childLogin;
@@ -34,6 +171,7 @@ function ShowPage(pageName) {
 
 function buildAppMenu() {
     const activeProfile = global.sharedObj.currentStory || "default";
+    const currentColor = global.sharedObj.themeColor || SWITCH_COLORS[activeProfile] || "#8178FF";
 
     const template = [
         {
@@ -200,9 +338,7 @@ function buildAppMenu() {
                     type: "radio",
                     checked: activeProfile === "default",
                     click: () => {
-                        global.sharedObj.currentStory = "default";
-                        buildAppMenu();
-                        win.reload();
+                        switchProfile("default", "#8178FF");
                     },
                 },
                 {
@@ -210,9 +346,7 @@ function buildAppMenu() {
                     type: "radio",
                     checked: activeProfile === "audio",
                     click: () => {
-                        global.sharedObj.currentStory = "audio";
-                        buildAppMenu();
-                        win.reload();
+                        switchProfile("audio", "#72BFFF");
                     },
                 },
                 {
@@ -220,9 +354,7 @@ function buildAppMenu() {
                     type: "radio",
                     checked: activeProfile === "gyan",
                     click: () => {
-                        global.sharedObj.currentStory = "gyan";
-                        buildAppMenu();
-                        win.reload();
+                        switchProfile("gyan", "#FFA6D2");
                     },
                 },
                 {
@@ -230,9 +362,7 @@ function buildAppMenu() {
                     type: "radio",
                     checked: activeProfile === "hope",
                     click: () => {
-                        global.sharedObj.currentStory = "hope";
-                        buildAppMenu();
-                        win.reload();
+                        switchProfile("hope", "#30334D");
                     },
                 },
                 {
@@ -240,9 +370,7 @@ function buildAppMenu() {
                     type: "radio",
                     checked: activeProfile === "namaste",
                     click: () => {
-                        global.sharedObj.currentStory = "namaste";
-                        buildAppMenu();
-                        win.reload();
+                        switchProfile("namaste", "#FF72B6");
                     },
                 },
                 {
@@ -250,9 +378,7 @@ function buildAppMenu() {
                     type: "radio",
                     checked: activeProfile === "promotion",
                     click: () => {
-                        global.sharedObj.currentStory = "promotion";
-                        buildAppMenu();
-                        win.reload();
+                        switchProfile("promotion", "#8178FF");
                     },
                 },
                 {
@@ -260,10 +386,44 @@ function buildAppMenu() {
                     type: "radio",
                     checked: activeProfile === "product",
                     click: () => {
-                        global.sharedObj.currentStory = "product";
-                        buildAppMenu();
-                        win.reload();
+                        switchProfile("product", "#72BFFF");
                     },
+                },
+                { type: "separator" },
+                {
+                    label: "Theme Background Colors",
+                    submenu: [
+                        {
+                            label: "Lavender (#8178FF)",
+                            type: "radio",
+                            checked: currentColor === "#8178FF",
+                            click: () => setThemeColorOnly("#8178FF"),
+                        },
+                        {
+                            label: "Sky Blue (#72BFFF)",
+                            type: "radio",
+                            checked: currentColor === "#72BFFF",
+                            click: () => setThemeColorOnly("#72BFFF"),
+                        },
+                        {
+                            label: "Pastel Pink (#FFA6D2)",
+                            type: "radio",
+                            checked: currentColor === "#FFA6D2",
+                            click: () => setThemeColorOnly("#FFA6D2"),
+                        },
+                        {
+                            label: "Midnight Navy (#30334D)",
+                            type: "radio",
+                            checked: currentColor === "#30334D",
+                            click: () => setThemeColorOnly("#30334D"),
+                        },
+                        {
+                            label: "Rose Pink (#FF72B6)",
+                            type: "radio",
+                            checked: currentColor === "#FF72B6",
+                            click: () => setThemeColorOnly("#FF72B6"),
+                        },
+                    ],
                 },
             ],
         },
@@ -378,7 +538,7 @@ app.on("ready", function () {
         minWidth: 1024,
         minHeight: 700,
         show: false,
-        backgroundColor: "#f1f5f9",
+        backgroundColor: global.sharedObj.themeColor || "#8178FF",
         title: "Workmob Admin Studio",
         webPreferences: {
             nodeIntegration: true,
@@ -389,6 +549,11 @@ app.on("ready", function () {
     });
 
     remoteMain.enable(win.webContents);
+
+    win.webContents.on("did-finish-load", () => {
+        applyThemeColorToWebContents(win.webContents);
+        injectAppHeaderStrip(win.webContents);
+    });
 
     win.loadURL(
         url.format({
@@ -445,7 +610,7 @@ app.on("ready", function () {
             height: 850,
             minWidth: 1024,
             minHeight: 700,
-            backgroundColor: "#f1f5f9",
+            backgroundColor: global.sharedObj.themeColor || "#8178FF",
             autoHideMenuBar: true,
             webPreferences: {
                 nodeIntegration: true,
@@ -455,6 +620,9 @@ app.on("ready", function () {
             },
         });
         remoteMain.enable(child.webContents);
+        child.webContents.on("did-finish-load", () => {
+            applyThemeColorToWebContents(child.webContents);
+        });
 
         let slugSent = false;
         function sendReceiveSlug() {
