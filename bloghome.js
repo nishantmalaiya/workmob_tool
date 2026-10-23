@@ -169,13 +169,21 @@ function RenderStory(stories, startIndex) {
         const industry = _story.industry || 'General';
         const location = _story.location || 'N/A';
         const author = _story.name ? `<span class="story-author"><span class="glyphicon glyphicon-user"></span> ${_story.name}</span>` : '';
+        const checkId = (_story.id !== undefined && _story.id !== null && _story.id !== "")
+            ? _story.id
+            : ((_story.ItemId !== undefined && _story.ItemId !== null && _story.ItemId !== "")
+                ? _story.ItemId
+                : ((_story.itemId !== undefined && _story.itemId !== null && _story.itemId !== "")
+                    ? _story.itemId
+                    : ""));
+        const storyId = checkId !== "" ? checkId : _story.slug;
 
         cards.push(`
-            <div class="storycard column" draggable="true" id="${_story.slug}">
+            <div class="storycard column" draggable="true" id="${_story.slug}" data-id="${storyId}" data-itemid="${storyId}">
                 <div class="story-col-order">
                     <span class="drag-handle" title="Drag to reorder"><span class="glyphicon glyphicon-menu-hamburger"></span></span>
                     <span class="order-badge" id="order-${_story.slug}">${displayOrder}</span>
-                    <input type="checkbox" class="story-chk" name="chkSlug" value="${_story.slug}">
+                    <input type="checkbox" class="story-chk" name="chkSlug" value="${_story.slug}" data-id="${storyId}">
                 </div>
                 <div class="story-col-thumb">
                     <img class="storythumb" src="${thumbUrl}" alt="${_story.name || heading}" onerror="this.onerror=null; this.src='${FALLBACK_THUMB}';">
@@ -228,7 +236,7 @@ function showOrderInput(slug, currentOrder) {
     }
 }
 
-// Save Single Story Order (same as categories.js)
+// Save Single Story Order
 async function saveSingleOrder(slug) {
     const orderInput = $("#order-input-" + slug);
     const newIndex = parseInt(orderInput.val(), 10);
@@ -245,28 +253,41 @@ async function saveSingleOrder(slug) {
         const currentActivePathS3 = common.getS3Path ? common.getS3Path() : activePathS3;
         const endpoint = (currentActivePathS3[PATH_KEY] || FALLBACK_PATH).replace(/\//g, "").replace(".json", "");
 
-        // Except default section, call POST method in API
-        const httpMethod = (currentType === "default") ? "PUT" : "POST";
-
-        // While POST, remove slug from the end of URL
-        const url = (httpMethod === "POST")
-            ? `${common.API_BASE_URL}/${endpoint}`
-            : `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(slug)}`;
-
-        console.log(`Updating order for slug: ${slug} to index: ${newIndex} using ${httpMethod} on ${url} (section: ${currentType})`);
-
         // Find respective story data from loaded stories
         const storyItem = (GlobalJSONObj || []).find(item => item && item.slug === slug) || {};
 
-        // In case of POST API send respective all data with index_order
-        const requestPayload = (httpMethod === "POST")
-            ? { ...storyItem, slug: slug, index_order: newIndex, order: newIndex }
-            : { slug: slug, index_order: newIndex, order: newIndex };
+        let url;
+        let requestPayload;
 
-        console.log(`Payload for ${httpMethod}:`, requestPayload);
+        if (currentType === "default") {
+            url = `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(slug)}`;
+            requestPayload = { slug: slug, index_order: newIndex, order: newIndex };
+        } else {
+            // Except default, check id or ItemId value
+            const checkId = (storyItem.id !== undefined && storyItem.id !== null && storyItem.id !== "")
+                ? storyItem.id
+                : ((storyItem.ItemId !== undefined && storyItem.ItemId !== null && storyItem.ItemId !== "")
+                    ? storyItem.ItemId
+                    : ((storyItem.itemId !== undefined && storyItem.itemId !== null && storyItem.itemId !== "")
+                        ? storyItem.itemId
+                        : ""));
+
+            const targetId = (checkId !== "") ? checkId : slug;
+            url = `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(targetId)}`;
+            requestPayload = {
+                ...storyItem,
+                slug: slug,
+                ...(checkId !== "" ? { id: checkId, ItemId: checkId, itemId: checkId } : {}),
+                index_order: newIndex,
+                order: newIndex
+            };
+        }
+
+        console.log(`Updating order for slug: ${slug} to index: ${newIndex} using PUT on ${url} (section: ${currentType})`);
+        console.log(`Payload:`, requestPayload);
 
         const response = await fetch(url, {
-            method: httpMethod,
+            method: "PUT",
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestPayload)
         });
@@ -293,9 +314,26 @@ async function deleteStory(slug) {
     if (confirm("Are you sure you want to remove this story?")) {
         showLoaderImmediate();
 
+        const currentType = (remote.getGlobal("sharedObj") && remote.getGlobal("sharedObj").currentStory) ? remote.getGlobal("sharedObj").currentStory : type;
         const currentActivePathS3 = common.getS3Path ? common.getS3Path() : activePathS3;
         const endpoint = (currentActivePathS3[PATH_KEY] || FALLBACK_PATH).replace(/\//g, "").replace(".json", "");
-        const url = `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(slug)}`;
+
+        const storyItem = (GlobalJSONObj || []).find(item => item && item.slug === slug) || {};
+        let targetId = slug;
+        if (currentType !== "default") {
+            const checkId = (storyItem.id !== undefined && storyItem.id !== null && storyItem.id !== "")
+                ? storyItem.id
+                : ((storyItem.ItemId !== undefined && storyItem.ItemId !== null && storyItem.ItemId !== "")
+                    ? storyItem.ItemId
+                    : ((storyItem.itemId !== undefined && storyItem.itemId !== null && storyItem.itemId !== "")
+                        ? storyItem.itemId
+                        : ""));
+            if (checkId !== "") {
+                targetId = checkId;
+            }
+        }
+
+        const url = `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(targetId)}`;
 
         try {
             const response = await fetch(url, {
@@ -348,13 +386,43 @@ async function saveUPre() {
 
     showLoaderImmediate();
     try {
+        const currentType = (remote.getGlobal("sharedObj") && remote.getGlobal("sharedObj").currentStory) ? remote.getGlobal("sharedObj").currentStory : type;
         const currentActivePathS3 = common.getS3Path ? common.getS3Path() : activePathS3;
-        var meta = await WriteS3Bucket(OrderedList, currentActivePathS3[PATH_KEY]);
-        if (meta && meta.err) {
-            console.error("Error saving order:", meta.err);
-            alert("Error saving story order: " + meta.err);
-            hideLoaderImmediate();
-            return;
+
+        if (currentType !== "default") {
+            const endpoint = (currentActivePathS3[PATH_KEY] || FALLBACK_PATH).replace(/\//g, "").replace(".json", "");
+            for (let i = 0; i < OrderedList.length; i++) {
+                const item = OrderedList[i];
+                const checkId = (item.id !== undefined && item.id !== null && item.id !== "")
+                    ? item.id
+                    : ((item.ItemId !== undefined && item.ItemId !== null && item.ItemId !== "")
+                        ? item.ItemId
+                        : ((item.itemId !== undefined && item.itemId !== null && item.itemId !== "")
+                            ? item.itemId
+                            : ""));
+                const targetId = (checkId !== "") ? checkId : item.slug;
+                const url = `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(targetId)}`;
+                const payload = {
+                    ...item,
+                    slug: item.slug,
+                    ...(checkId !== "" ? { id: checkId, ItemId: checkId, itemId: checkId } : {}),
+                    index_order: i + 1,
+                    order: i + 1
+                };
+                await fetch(url, {
+                    method: "PUT",
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
+        } else {
+            var meta = await WriteS3Bucket(OrderedList, currentActivePathS3[PATH_KEY]);
+            if (meta && meta.err) {
+                console.error("Error saving order:", meta.err);
+                alert("Error saving story order: " + meta.err);
+                hideLoaderImmediate();
+                return;
+            }
         }
 
         GlobalJSONObj = OrderedList;
@@ -386,13 +454,26 @@ $('#btnRemoveSelected').on('click', async function () {
 
     if (confirm(`Are you sure you want to remove ${selectedCheckboxes.length} selected stor${selectedCheckboxes.length === 1 ? 'y' : 'ies'}?`)) {
         showLoaderImmediate();
+        const currentType = (remote.getGlobal("sharedObj") && remote.getGlobal("sharedObj").currentStory) ? remote.getGlobal("sharedObj").currentStory : type;
         const currentActivePathS3 = common.getS3Path ? common.getS3Path() : activePathS3;
         const endpoint = (currentActivePathS3[PATH_KEY] || FALLBACK_PATH).replace(/\//g, "").replace(".json", "");
 
         for (let i = 0; i < selectedCheckboxes.length; i++) {
             let deleteSlug = $(selectedCheckboxes[i]).val();
+            let targetId = deleteSlug;
+            if (currentType !== "default") {
+                const storyItem = (GlobalJSONObj || []).find(item => item && item.slug === deleteSlug) || {};
+                const checkId = (storyItem.id !== undefined && storyItem.id !== null && storyItem.id !== "")
+                    ? storyItem.id
+                    : ((storyItem.ItemId !== undefined && storyItem.ItemId !== null && storyItem.ItemId !== "")
+                        ? storyItem.ItemId
+                        : ((storyItem.itemId !== undefined && storyItem.itemId !== null && storyItem.itemId !== "")
+                            ? storyItem.itemId
+                            : ""));
+                if (checkId !== "") targetId = checkId;
+            }
             try {
-                const url = `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(deleteSlug)}`;
+                const url = `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(targetId)}`;
                 await fetch(url, {
                     method: "DELETE",
                     headers: { "Content-Type": "application/json" }
@@ -415,13 +496,26 @@ $('#btnRemoveAll').on('click', async function () {
 
     if (confirm('Are you sure? ALL stories in this list will be removed!')) {
         showLoaderImmediate();
+        const currentType = (remote.getGlobal("sharedObj") && remote.getGlobal("sharedObj").currentStory) ? remote.getGlobal("sharedObj").currentStory : type;
         const currentActivePathS3 = common.getS3Path ? common.getS3Path() : activePathS3;
         const endpoint = (currentActivePathS3[PATH_KEY] || FALLBACK_PATH).replace(/\//g, "").replace(".json", "");
 
         for (let i = 0; i < allCheckboxes.length; i++) {
             let deleteSlug = $(allCheckboxes[i]).val();
+            let targetId = deleteSlug;
+            if (currentType !== "default") {
+                const storyItem = (GlobalJSONObj || []).find(item => item && item.slug === deleteSlug) || {};
+                const checkId = (storyItem.id !== undefined && storyItem.id !== null && storyItem.id !== "")
+                    ? storyItem.id
+                    : ((storyItem.ItemId !== undefined && storyItem.ItemId !== null && storyItem.ItemId !== "")
+                        ? storyItem.ItemId
+                        : ((storyItem.itemId !== undefined && storyItem.itemId !== null && storyItem.itemId !== "")
+                            ? storyItem.itemId
+                            : ""));
+                if (checkId !== "") targetId = checkId;
+            }
             try {
-                const url = `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(deleteSlug)}`;
+                const url = `${common.API_BASE_URL}/${endpoint}/${encodeURIComponent(targetId)}`;
                 await fetch(url, {
                     method: "DELETE",
                     headers: { "Content-Type": "application/json" }

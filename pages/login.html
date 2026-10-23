@@ -14,26 +14,25 @@
 </head>
 
 <body>
-    <div class="container">
-
-        <button id="btnExit" type="button" class="close" aria-label="Close">
+    <div class="container" style="padding-top: 10px;">
+        <button id="btnExit" type="button" class="close" aria-label="Close" style="font-size: 24px; opacity: 0.6;">
             <span aria-hidden="true">&times;</span>
         </button>
-        <br />
-        <img src="../images/Wlogo.png" alt="Workmob" class="img-fluid text-center"
-            style="max-width: 70%; padding-top:5px; padding-bottom: 5px; padding-left: 80px; text-align:center;">
-        <br>
-        <br>
-        <div class="form-group">
-            <label for="usr">User Name:</label>
-            <input type="text" class="form-control" id="txtUsr" />
+        <div style="text-align: center; margin-top: 5px; margin-bottom: 12px;">
+            <img src="../images/Wlogo.png" alt="Workmob"
+                style="height: 64px; width: 64px; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); object-fit: contain; display: inline-block;">
+            <div style="font-weight: 700; font-size: 15px; color: #1e293b; margin-top: 8px; letter-spacing: 0.3px;">Workmob Merikahani</div>
         </div>
-        <div class="form-group">
-            <label for="pwd">Password:</label>
-            <input type="password" class="form-control" id="txtPwd" />
+        <div class="form-group" style="margin-bottom: 10px;">
+            <label for="usr" style="font-size: 12px; margin-bottom: 3px;">User Name:</label>
+            <input type="text" class="form-control input-sm" id="txtUsr" />
         </div>
-        <button class="btn btn-default" id="btn-login">Login</button>
-        <label id="lbl" style="color:red;"></label>
+        <div class="form-group" style="margin-bottom: 12px;">
+            <label for="pwd" style="font-size: 12px; margin-bottom: 3px;">Password:</label>
+            <input type="password" class="form-control input-sm" id="txtPwd" />
+        </div>
+        <button class="btn btn-primary btn-block" id="btn-login" style="font-weight: 600;">Login</button>
+        <label id="lbl" style="color:red; font-size: 12px; margin-top: 6px; display: block; text-align: center;"></label>
     </div>
     <script>
         const { ipcRenderer: ipc } = require("electron");

@@ -384,10 +384,10 @@
     "label": "Instagarm"
   },
   {
-    "name": "instagram_social_landscape",
+    "name": "instagram_social_portrait",
     "class": "col-md-6",
     "type": "text",
-    "label": "Instagram Social Landscape"
+    "label": "Instagram Social Portrait"
   },
   {
     "name": "whatsapp",

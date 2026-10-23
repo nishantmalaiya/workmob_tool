@@ -59,7 +59,7 @@ function injectAppHeaderStrip(contents) {
         pkg = require("./package.json");
     } catch (e) {}
 
-    const toolName = pkg.productName || pkg.name || "WorkmobStoryToolDyanomoDB";
+    const toolName = "Workmob Merikahani";
     const toolAuthor = pkg.author || "Nishant Malaiya";
     const buildVersion = pkg.version || "5.3.0";
     const activeProfile = (global.sharedObj && global.sharedObj.currentStory) ? global.sharedObj.currentStory : "default";
@@ -77,8 +77,8 @@ function injectAppHeaderStrip(contents) {
             strip.id = 'workmob-top-ui-strip';
             strip.innerHTML = \`
                 <div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
+                    <img src="images/Wlogo.png" style="width: 22px; height: 22px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); object-fit: contain; background: #ffffff;" alt="Logo" onerror="this.style.display='none'">
                     <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; letter-spacing: 0.3px; color: #ffffff;">
-                        <span class="glyphicon glyphicon-hdd" style="font-size: 14px; color: #93c5fd;"></span>
                         <span>${toolName}</span>
                     </div>
                     <span style="color: rgba(255,255,255,0.4);">|</span>
@@ -532,14 +532,17 @@ app.on("ready", function () {
         return;
     }
 
+    const appIconPath = paths.join(__dirname, "images", "Wlogo.png");
+
     win = new BrowserWindow({
         width: 1400,
         height: 900,
         minWidth: 1024,
         minHeight: 700,
         show: false,
+        icon: appIconPath,
         backgroundColor: global.sharedObj.themeColor || "#8178FF",
-        title: "Workmob Admin Studio",
+        title: "Workmob Merikahani",
         webPreferences: {
             nodeIntegration: true,
             webSecurity: true,
@@ -572,8 +575,9 @@ app.on("ready", function () {
         frame: false,
         resizable: false,
         center: true,
+        icon: appIconPath,
         backgroundColor: "#ffffff",
-        title: "Workmob Admin Login",
+        title: "Workmob Merikahani Login",
         webPreferences: {
             nodeIntegration: true,
             enableRemoteModule: true,
@@ -606,6 +610,7 @@ app.on("ready", function () {
             modal: true,
             parent: win,
             title: "Story Details - Workmob",
+            icon: appIconPath,
             width: 1300,
             height: 850,
             minWidth: 1024,

@@ -13,20 +13,8 @@ let common = require("./Js/config");
 let activePathS3 = common.getS3Path();
 var type = remote.getGlobal("sharedObj").currentStory;
 
-/** Set to true to show debug tools and prefill dummy data for testing */
-const TEST_PREFILL_STORY = true;
 let editSlug = "";
 let editItemId = "";
-
-// Automatically open DevTools in debug mode (detached window for modal dialogs)
-try {
-    const currentWin = remote.getCurrentWindow();
-    if (currentWin && currentWin.webContents) {
-        currentWin.webContents.openDevTools({ mode: "detach" });
-    }
-} catch (e) {
-    console.warn("Could not automatically open DevTools:", e);
-}
 
 // Global keyboard shortcut to toggle DevTools (F12 or Ctrl+Shift+I)
 window.addEventListener("keydown", function (e) {
@@ -44,109 +32,6 @@ window.addEventListener("keydown", function (e) {
             console.error("Error toggling DevTools:", err);
         }
     }
-});
-
-function renderDebugBar() {
-    if ($("#debugOptionsBar").length > 0) return;
-    const debugHtml = `
-        <div id="debugOptionsBar" class="col-md-12" style="margin-bottom: 15px; margin-top: 10px;">
-            <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-                <div style="display: flex; align-items: center; gap: 8px; color: #f8fafc; font-size: 13px; font-weight: 600;">
-                    <span class="glyphicon glyphicon-wrench" style="color: #38bdf8;"></span>
-                    <span>Debug Options</span>
-                    <span style="background: #0284c7; color: white; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 700;">ACTIVE</span>
-                </div>
-                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                    <button type="button" id="btnDebugDevTools" class="btn btn-xs btn-primary" style="font-weight: 600;">
-                        <span class="glyphicon glyphicon-console"></span> Toggle DevTools
-                    </button>
-                    <button type="button" id="btnDebugPrefill" class="btn btn-xs btn-warning" style="font-weight: 600;">
-                        <span class="glyphicon glyphicon-pencil"></span> Prefill Test Data
-                    </button>
-                    <button type="button" id="btnDebugLogPayload" class="btn btn-xs btn-info" style="font-weight: 600;">
-                        <span class="glyphicon glyphicon-list-alt"></span> Log Form JSON
-                    </button>
-                    <button type="button" id="btnDebugClear" class="btn btn-xs btn-danger" style="font-weight: 600;">
-                        <span class="glyphicon glyphicon-trash"></span> Clear Inputs
-                    </button>
-                    <button type="button" id="btnDebugReload" class="btn btn-xs btn-default" style="font-weight: 600;">
-                        <span class="glyphicon glyphicon-refresh"></span> Reload
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    $("#content").prepend(debugHtml);
-
-    $("#btnDebugDevTools").on("click", function (e) {
-        e.preventDefault();
-        try {
-            const win = remote.getCurrentWindow();
-            if (win && win.webContents) {
-                if (win.webContents.isDevToolsOpened()) {
-                    win.webContents.closeDevTools();
-                } else {
-                    win.webContents.openDevTools({ mode: "detach" });
-                }
-            }
-        } catch (err) {
-            console.error("Error toggling DevTools:", err);
-            alert("Error toggling DevTools: " + err.message);
-        }
-    });
-
-    $("#btnDebugPrefill").on("click", function (e) {
-        e.preventDefault();
-        prefillStoryTestData();
-    });
-
-    $("#btnDebugLogPayload").on("click", function (e) {
-        e.preventDefault();
-        console.group("=== [DEBUG] Story Form State ===");
-        console.log("editSlug:", editSlug);
-        console.log("editItemId:", editItemId);
-        console.log("masterCategory:", typeof masterCategory !== 'undefined' ? masterCategory : 'N/A');
-        console.log("type:", type);
-        console.log("API_BASE_URL:", API_BASE_URL);
-        console.log("activePathS3:", activePathS3);
-        const formValues = {};
-        $("#divJson input, #divJson select, #divJson textarea").each(function () {
-            const name = $(this).attr("name");
-            if (name) formValues[name] = $(this).val();
-        });
-        console.log("Form Values:", formValues);
-        console.groupEnd();
-        alert("Story debug state logged to Console (F12 or click 'Toggle DevTools' to inspect).");
-    });
-
-    $("#btnDebugClear").on("click", function (e) {
-        e.preventDefault();
-        if (confirm("Clear all story inputs in form?")) {
-            $("#divJson input:not([disabled]), #divJson textarea").val("");
-            $("#divJson").find('[name="index_order"]').val("0");
-            $("#divJson").find('[name="org_index"]').val("0");
-            if ($("#ddl_instructor")[0] && $("#ddl_instructor")[0].selectize) {
-                $("#ddl_instructor")[0].selectize.clear();
-            }
-            if ($("#ddl_location")[0] && $("#ddl_location")[0].selectize) {
-                $("#ddl_location")[0].selectize.clear();
-            }
-            if ($("#ddl_organisation").length > 0 && typeof $("#ddl_organisation").multipleSelect === "function") {
-                $("#ddl_organisation").multipleSelect("setSelects", []);
-            } else if ($("#ddl_organisation")[0] && $("#ddl_organisation")[0].selectize) {
-                $("#ddl_organisation")[0].selectize.clear();
-            }
-        }
-    });
-
-    $("#btnDebugReload").on("click", function (e) {
-        e.preventDefault();
-        remote.getCurrentWindow().reload();
-    });
-}
-
-$(document).ready(function () {
-    renderDebugBar();
 });
 
 function prefillStoryTestData() {
@@ -171,8 +56,8 @@ function prefillStoryTestData() {
         $("#divJson").find('[name="workmobUserId"]').val("12345");
         $("#divJson").find('[name="workmobUserName"]').val("testuser");
         $("#divJson").find('[name="user_guid"]').val("test-user-guid-" + uniqueId + "-123456789");
-        $("#divJson").find('[name="instagram_social_landscape"]').val("https://instagram.com/p/testlandscape" + uniqueId);
-        $("#divJson").find('[name="index_order"]').val("0");
+        $("#divJson").find('[name="instagram_social_portrait"]').val("https://instagram.com/p/testportrait" + uniqueId);
+        $("#divJson").find('[name="index_order"]').val(Date.now());
 
         // Selectize fields (Location, Organisation, Instructor)
         if ($("#ddl_instructor")[0] && $("#ddl_instructor")[0].selectize) {
@@ -219,7 +104,7 @@ const STORIES_API_ALLOWED_KEYS = [
     "name", "landmark", "date", "streetAddress", "instructor",
     "workmobUserName", "category", "workmobUserId", "webpthumb",
     "thumb", "hide", "tags", "storyHeading",
-    "instagram_social_landscape", "index_order",
+    "instagram_social_portrait", "index_order",
     "organisation", "org_index"
 ];
 
@@ -538,7 +423,6 @@ $("#divExtraFieldHindi").hide();
 var addStory = (async function () {
 
     ipcRenderer.on("receiveSlug", async (event, arg) => {
-        renderDebugBar();
         masterCategory = arg.category;
         editSlug = arg.slug;
         RenderFields("story");
@@ -551,12 +435,11 @@ var addStory = (async function () {
                 if ($("#divJson").find('[name="slug"]').length == 1) {
                     CheckSlugStory(arg.slug);
                     clearInterval(intv);
-                    if (!$("#divJson").find('[name="index_order"]').val()) {
-                        $("#divJson").find('[name="index_order"]').val("0");
+                    var curIndexVal = $.trim($("#divJson").find('[name="index_order"]').val());
+                    if (!curIndexVal || curIndexVal === "0" || isNaN(Number(curIndexVal)) || Number(curIndexVal) <= 0) {
+                        $("#divJson").find('[name="index_order"]').val(Date.now());
                     }
-                    if (typeof TEST_PREFILL_STORY !== 'undefined' && TEST_PREFILL_STORY) {
-                        prefillStoryTestData();
-                    }
+                    
                 }
             }, 1000);
             var orgIndexIntv = setInterval(function () {
@@ -988,7 +871,7 @@ var addStory = (async function () {
                 element.push("<label>" + object.label + "</label>");
             }
             if (object.type == "text" || object.type == "number") {
-                var defaultVal = (object.name === "index_order" || object.name === "org_index") ? "0" : "";
+                var defaultVal = (object.name === "index_order") ? Date.now() : ((object.name === "org_index") ? "0" : "");
                 element.push(
                     '<input id="txt_' +
                     object.name +
@@ -1165,8 +1048,12 @@ var addStory = (async function () {
             );
         }
         var indexOrderVal = $.trim($("#divJson").find('[name="index_order"]').val());
-        GenerateStory["index_order"] = (indexOrderVal !== "" && !isNaN(Number(indexOrderVal))) ? Number(indexOrderVal) : 0;
-        GenerateStory["order"] = GenerateStory["index_order"];
+        var parsedIndexOrder = (indexOrderVal !== "" && !isNaN(Number(indexOrderVal)) && Number(indexOrderVal) > 0)
+            ? Number(indexOrderVal)
+            : Date.now();
+        $("#divJson").find('[name="index_order"]').val(parsedIndexOrder);
+        GenerateStory["index_order"] = parsedIndexOrder;
+        GenerateStory["order"] = parsedIndexOrder;
         var orgIndexVal = $.trim($("#divJson").find('[name="org_index"]').val());
         GenerateStory["org_index"] = (orgIndexVal !== "" && !isNaN(Number(orgIndexVal))) ? Number(orgIndexVal) : 0;
         var fullStory = GetFullStory($("#divExtraField"));
@@ -1581,6 +1468,12 @@ var addStory = (async function () {
 
 
     async function validaton(json, callback) {
+        if (!json["index_order"] || json["index_order"] === 0 || json["index_order"] === "0" || isNaN(Number(json["index_order"])) || Number(json["index_order"]) <= 0) {
+            var validTimestamp = Date.now();
+            json["index_order"] = validTimestamp;
+            json["order"] = validTimestamp;
+            $("#divJson").find('[name="index_order"]').val(validTimestamp);
+        }
         var list = ["storyHeading", "name", "slug", "category"];
         var result = { cansave: true, msg: "", node: "" };
         for (var i = 0; i < list.length; i++) {
@@ -2085,6 +1978,11 @@ var addStory = (async function () {
                         JSON_Obj = JSON_Obj[0];
                     }
                     editItemId = JSON_Obj.itemId || "";
+                    if (JSON_Obj.instagram_social_portrait !== undefined && JSON_Obj.instagram_social_portrait !== null) {
+                        $("#divJson").find('[name="instagram_social_portrait"]').val(JSON_Obj.instagram_social_portrait);
+                    } else if (JSON_Obj.instagram_social_landscape !== undefined && JSON_Obj.instagram_social_landscape !== null) {
+                        $("#divJson").find('[name="instagram_social_portrait"]').val(JSON_Obj.instagram_social_landscape);
+                    }
 
                     var ignoreItem = ["fullStory", "fullStory_hindi", "master_categories"];
 
@@ -2117,13 +2015,16 @@ var addStory = (async function () {
                             }
                         }
                     }
-                    if (JSON_Obj.index_order !== undefined && JSON_Obj.index_order !== null && JSON_Obj.index_order !== "") {
-                        $("#divJson").find('[name="index_order"]').val(JSON_Obj.index_order);
-                    } else if (JSON_Obj.order !== undefined && JSON_Obj.order !== null && JSON_Obj.order !== "") {
-                        $("#divJson").find('[name="index_order"]').val(JSON_Obj.order);
-                    } else {
-                        $("#divJson").find('[name="index_order"]').val("0");
+                    var loadedIndexOrder = (JSON_Obj.index_order !== undefined && JSON_Obj.index_order !== null && JSON_Obj.index_order !== "" && JSON_Obj.index_order !== 0 && JSON_Obj.index_order !== "0")
+                        ? JSON_Obj.index_order
+                        : ((JSON_Obj.order !== undefined && JSON_Obj.order !== null && JSON_Obj.order !== "" && JSON_Obj.order !== 0 && JSON_Obj.order !== "0")
+                            ? JSON_Obj.order
+                            : Date.now());
+                    var numericIndexOrder = Number(loadedIndexOrder);
+                    if (isNaN(numericIndexOrder) || numericIndexOrder <= 0) {
+                        numericIndexOrder = Date.now();
                     }
+                    $("#divJson").find('[name="index_order"]').val(numericIndexOrder);
 
                     if (JSON_Obj["org_index"] !== undefined && JSON_Obj["org_index"] !== null) {
                         $("#divJson").find('[name="org_index"]').val(JSON_Obj["org_index"]);

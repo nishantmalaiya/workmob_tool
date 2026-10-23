@@ -87,7 +87,11 @@ function bindEvents() {
     });
 
     // Add New Location button
-    $("#btnAddLocation").on('click', function () {
+    $("#btnAddLocation").on('click', function (e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
         $('#txtLocation').val('');
         $('#txtLocationId').val('').prop('disabled', false).prop('readonly', false);
         $('#hdnLocationId').val('');
@@ -95,7 +99,13 @@ function bindEvents() {
         $('#modalTitleText').text("Add New Location");
         $('#txtLocationIdNote').text("Canonical ID is permanent once created and used as the unique key. If left blank, it will be generated automatically.");
         $('#locationModal').modal('show');
-        focusInput('txtLocation');
+    });
+
+    // Auto-focus input when modal finishes showing
+    $('#locationModal').on('shown.bs.modal', function () {
+        $('#txtLocation').trigger('focus');
+        var el = document.getElementById('txtLocation');
+        if (el && el.select) el.select();
     });
 
     // Auto-fill txtLocationId on input in txtLocation when adding new
@@ -454,7 +464,6 @@ function editLocation(locationName, id, order) {
     $('#index_order').val(order !== undefined && order !== null && order !== '-' ? order : '0');
     $('#txtLocationIdNote').text("Location ID cannot be modified during edit.");
     $('#locationModal').modal('show');
-    focusInput('txtLocation');
 }
 
 // Delete location
