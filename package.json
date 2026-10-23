@@ -1,11 +1,11 @@
 {
   "name": "WorkmobStoryToolDyanomoDB",
-  "version": "5.2.0",
+  "version": "5.3.0",
   "description": "Manage JSON",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build:win": "node scripts/build-with-timestamp.js --win",
+    "build:win": "node scripts/run_build.js",
     "build:win:dir": "node scripts/build-with-timestamp.js --win --dir",
     "package-mac": "electron-packager . --overwrite --platform=darwin --arch=x64 --icon=assets/mac/icon.icns --prune=true --out=release-builds",
     "package-win": "electron-packager . WorkmobJson --overwrite --asar=true --platform=win32 --arch=x64 --icon=images/Wlogo.png --prune=true --out=release-builds --version-string.CompanyName=CE --version-string.FileDescription=CE --version-string.ProductName=\"WorkmobJson\"",
@@ -31,6 +31,7 @@
   ],
   "build": {
     "appId": "com.workmob.workmobjson",
+    "productName": "WorkmobStoryToolDyanomoDB",
     "asar": true,
     "win": {
       "target": "nsis",

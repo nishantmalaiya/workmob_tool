@@ -54,14 +54,14 @@ function applyThemeColorToWebContents(contents, color) {
 function injectAppHeaderStrip(contents) {
     if (!contents || contents.isDestroyed()) return;
 
-    let pkg = { name: "WorkmobStoryToolDyanomoDB", author: "Nishant Malaiya", version: "5.2.0" };
+    let pkg = { name: "WorkmobStoryToolDyanomoDB", author: "Nishant Malaiya", version: "5.3.0" };
     try {
         pkg = require("./package.json");
     } catch (e) {}
 
     const toolName = pkg.productName || pkg.name || "WorkmobStoryToolDyanomoDB";
     const toolAuthor = pkg.author || "Nishant Malaiya";
-    const buildVersion = pkg.version || "5.2.0";
+    const buildVersion = pkg.version || "5.3.0";
     const activeProfile = (global.sharedObj && global.sharedObj.currentStory) ? global.sharedObj.currentStory : "default";
 
     const jsCode = `

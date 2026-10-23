@@ -1,175 +1,498 @@
 const fs = require('fs');
 const path = require('path');
-// var remote = require('electron').remote;
 var remote = require('@electron/remote');
+var ipcRenderer = require('electron').ipcRenderer;
 const dialog = remote.dialog;
 let common = require('../Js/config');
 let activePathS3 = common.getS3Path();
+var type = remote.getGlobal("sharedObj") ? remote.getGlobal("sharedObj").currentStory : "default";
 
-let currentOffset = 0; // Tracks the current offset
-let allRecords = []; 
-let isFetching = false; 
+let allRecords = [];
+let isFetching = false;
 let lastKey = '';
-const LOCATIONS_API_BASE = "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations";
-locationMasterList();
-// async function locationMasterList() {
-//     debugger;
-//     $('body').togghasMoreleClass('loaded');
-//     var meta = await readS3BucketAsync("LocationMaster.json", "");
+let hasMore = true;
+let currentSearchQuery = '';
 
-//     $('body').toggleClass('loaded');
-//     if (meta.err) {
-//         console.log(meta.err);
-//     }
-//     var storyCard = "";
-//     storyCard = "<div class=\"storycardheader col-md-12 row\">";
-//     storyCard = storyCard + "<div class=\"col-md-9\"><h4>Location</h4></div>";
-//     storyCard = storyCard + "<div class=\"col-md-3\"></div>";
-//     storyCard = storyCard + "<hr></div>";
-//     $('#divStory').html(storyCard);
-//     var storyCard = "";
-//     $(JSON.parse(meta.data)).each(function () {
-//         storyCard = storyCard + "<div class=\"col-md-9\">" + this.location + "</div>";
-//         storyCard = storyCard + "<div class=\"col-md-3\"><a href=\"#\" data-toggle=\"modal\" data-target=\"#locationModal\" onclick=\"editLocation('" + this.location + "','" + this.id + "')\">Edit</a></div>";
-//     });
-//     $('#divStory').append(storyCard);
-// }
+const LOCATIONS_API_BASE = (common && common.API_BASE_URL)
+    ? `${common.API_BASE_URL}/locations`
+    : "https://r5dojmizdd.execute-api.ap-south-1.amazonaws.com/prod/locations";
 
+$(document).ready(function () {
+    bindEvents();
+    locationMasterList();
+});
 
-
-async function locationMasterList() {
-    // Reset initial state
-    allRecords = [];
-    lastKey = '';
-    let header = `
-        <div class="storycardheader col-md-12 row">
-            <div class="col-md-7"><h4>Location</h4></div>
-            <div class="col-md-2"></div>
-            <div class="col-md-3"></div>
-            <hr>
-        </div>`;
-    $('#divStory').html(header);
-
-    fetchAndRenderRecords();
+function escapeHtml(str) {
+    if (str === undefined || str === null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
-// Function to fetch and render records
-async function fetchAndRenderRecords() {
-    if (isFetching) return;
-    isFetching = true;
+function showLoaderImmediate() {
     $('body').removeClass('loaded');
+    $('#loader-wrapper').css({ visibility: 'visible', transform: 'translateY(0)', transition: 'none' });
+}
 
-    try {
-        let hasMore = true;
-        while (hasMore) {
-            const url = `${LOCATIONS_API_BASE}?lastKey=${encodeURIComponent(lastKey)}`;
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`API failed: ${response.status}`);
+function hideLoaderImmediate() {
+    $('body').addClass('loaded');
+    $('#loader-wrapper').css({ visibility: 'hidden', transform: 'translateY(-100%)', transition: 'none' });
+    $('.loader-section').css({ transition: 'none' });
+}
 
-            const data = await response.json();
-            const records = data.data || data.locations || [];
-            
-            if (records.length > 0) {
-                allRecords = [...allRecords, ...records];
-                renderData(records);
-            }
+function focusInput(id) {
+    setTimeout(function () {
+        var el = document.getElementById(id);
+        if (el) { el.focus(); if (el.select) el.select(); }
+    }, 100);
+}
 
-            hasMore = data.hasMore;
-            lastKey = data.lastKey || '';
-            if (!hasMore) break;
-        }
-    } catch (error) {
-        console.error("Error fetching records:", error);
-    } finally {
-        $('body').addClass('loaded');
-        isFetching = false;
+function updateLocationBadge() {
+    if (allRecords && allRecords.length > 0) {
+        const suffix = hasMore ? ' (fetching...)' : ' (all loaded)';
+        $('#locationCountBadge').text(`${allRecords.length} ${allRecords.length === 1 ? 'location' : 'locations'}${suffix}`).show();
+    } else {
+        $('#locationCountBadge').hide();
     }
 }
-// async function fetchAndRenderRecords(offset, limit) {
-//     if (isFetching) return; // Prevent overlapping requests
-//     isFetching = true;
-//     $('body').toggleClass('loaded');
 
-//     try {
-//         const meta = await readS3BucketAsync("LocationMaster.json", "");
-//         $('body').toggleClass('loaded');
+function sortLocations(list) {
+    if (!list || !Array.isArray(list)) return [];
+    return list.sort((a, b) => {
+        const hasOrderA = (a.index_order !== undefined && a.index_order !== null && a.index_order !== '' && !isNaN(a.index_order) && Number(a.index_order) > 0);
+        const hasOrderB = (b.index_order !== undefined && b.index_order !== null && b.index_order !== '' && !isNaN(b.index_order) && Number(b.index_order) > 0);
 
-//         if (meta.err) {
-//             console.log(meta.err);
-//             return;
-//         }
+        if (hasOrderA && hasOrderB) {
+            const diff = Number(a.index_order) - Number(b.index_order);
+            if (diff !== 0) return diff;
+        } else if (hasOrderA) {
+            return -1;
+        } else if (hasOrderB) {
+            return 1;
+        }
 
-//         const data = JSON.parse(meta.data);
-//         const recordsToAppend = data.slice(offset, offset + limit);
-
-//         if (recordsToAppend.length > 0) {
-//             allRecords = [...allRecords, ...recordsToAppend]; // Update all records
-//             renderData(recordsToAppend); // Render the new records
-//             currentOffset += limit; // Increment offset for the next batch
-//         } else {
-//             console.log("No more records to load.");
-//         }
-//     } catch (error) {
-//         $('body').toggleClass('loaded');
-//         console.error("Error fetching records:", error);
-//     } finally {
-//         isFetching = false; // Reset fetching status
-//     }
-// }
-
-// Function to render data
-function renderData(newRecords) {
-    let storyCard = "";
-
-    newRecords.forEach(record => {
-        storyCard += `
-            <div class="storycard col-md-12 row column" id="${record.id}">
-                <div class="col-md-7">${record.location}</div>
-                <div class="col-md-2">
-                    <a href="#" data-toggle="modal" data-target="#locationModal" onclick="editLocation('${record.location}', '${record.id}')">Edit</a>
-                </div>
-                <div class="col-md-3">
-                    <a href="#" onclick="deleteLocation('${record.id}')">Delete</a>
-                </div>
-                <hr>
-            </div>`;
+        const nameA = String(a.location || a.id || '').trim();
+        const nameB = String(b.location || b.id || '').trim();
+        return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
     });
-
-    $('#divStory').append(storyCard);
 }
 
-async function deleteLocation(id) {
-    if (confirm("Are you sure you want to delete this location?")) {
-        $('body').addClass('loaded');
+function bindEvents() {
+    // Top save all order button
+    $('#btnSaveAllOrder').on('click', function () {
+        saveUPre();
+    });
+
+    // Add New Location button
+    $("#btnAddLocation").on('click', function () {
+        $('#txtLocation').val('');
+        $('#txtLocationId').val('').prop('disabled', false).prop('readonly', false);
+        $('#hdnLocationId').val('');
+        $('#index_order').val('0');
+        $('#modalTitleText').text("Add New Location");
+        $('#txtLocationIdNote').text("Canonical ID is permanent once created and used as the unique key. If left blank, it will be generated automatically.");
+        $('#locationModal').modal('show');
+        focusInput('txtLocation');
+    });
+
+    // Auto-fill txtLocationId on input in txtLocation when adding new
+    $('#txtLocation').on('input', function () {
+        if ($('#hdnLocationId').val() === '') {
+            const generated = $(this).val().toLowerCase().trim().replace(/[^a-z0-9\s_]/gi, '').replace(/\s+/g, '_');
+            $('#txtLocationId').val(generated);
+        }
+    });
+
+    // Modal cancel/close click
+    $("#btnClose").on('click', function () {
+        $('#locationModal').modal('hide');
+    });
+
+    // Modal save location button
+    $("#btnSave").on('click', function () {
+        handleSaveLocation();
+    });
+
+    // Search events
+    $("#btnSearch").on('click', function () {
+        SearchOnLocation();
+    });
+
+    $("#btnClearSearch").on('click', function () {
+        ClearSearchOnLocation();
+    });
+
+    $('#txtSearchLocation').on('keypress', function (e) {
+        if (e.which === 13) {
+            SearchOnLocation();
+        }
+    });
+
+    $('#txtSearchLocation').on('keyup', function () {
+        const query = $('#txtSearchLocation').val().trim();
+        if (query.length >= 2) {
+            SearchOnLocation();
+        } else if (query.length === 0) {
+            ClearSearchOnLocation();
+        }
+    });
+
+    // Delegated click handler for Edit button
+    $('#divStory').on('click', '.btn-edit', function (e) {
+        e.preventDefault();
+        const id = $(this).attr('data-id');
+        const locationName = $(this).attr('data-location');
+        const order = $(this).attr('data-order');
+        editLocation(locationName, id, order);
+    });
+
+    // Delegated click handler for Delete button
+    $('#divStory').on('click', '.btn-delete', function (e) {
+        e.preventDefault();
+        const id = $(this).attr('data-id');
+        const locationName = $(this).attr('data-location');
+        deleteLocation(id, locationName);
+    });
+
+    // Delegated click handler for Update Order toggle button
+    $('#divStory').on('click', '.btn-update-order', function (e) {
+        e.preventDefault();
+        const id = $(this).attr('data-id');
+        const currOrder = $(this).attr('data-order') || '0';
+        const group = $(`#order-group-${id}`);
+        const input = $(`#order-input-${id}`);
+
+        $('.order-edit-group').not(group).hide();
+
+        if (group.is(':visible')) {
+            group.hide();
+        } else {
+            input.val(currOrder !== '-' ? currOrder : '0');
+            group.css('display', 'inline-flex');
+            input.focus().select();
+        }
+    });
+
+    // Delegated click handler for single Save Order button
+    $('#divStory').on('click', '.btn-save-order', function (e) {
+        e.preventDefault();
+        const id = $(this).attr('data-id');
+        saveSingleOrder(id);
+    });
+
+    // Enter key inside inline order input
+    $('#divStory').on('keypress', '.order-input', function (e) {
+        if (e.which === 13) {
+            e.preventDefault();
+            const id = $(this).attr('id').replace('order-input-', '');
+            saveSingleOrder(id);
+        }
+    });
+}
+
+// Initial Location List Load
+async function locationMasterList() {
+    allRecords = [];
+    lastKey = '';
+    hasMore = true;
+
+    $('#divStory').html('');
+    $('#locationTableHeader').show();
+    $('#locPaginationProgress').hide();
+    $('#locPaginationEndMessage').hide();
+
+    await loadAllLocations();
+}
+
+// Fetch all locations from API
+async function loadAllLocations() {
+    if (isFetching) return;
+    isFetching = true;
+
+    showLoaderImmediate();
+    $('#locPaginationStats').text("Fetching records from API...");
+    $('#locPaginationProgress').show();
+    $('#locPaginationEndMessage').hide();
+
+    try {
+        let hasMorePages = true;
+        while (hasMorePages) {
+            const url = lastKey
+                ? `${LOCATIONS_API_BASE}?lastKey=${encodeURIComponent(lastKey)}`
+                : LOCATIONS_API_BASE;
+
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`API failed with status ${response.status}`);
+
+            const data = await response.json();
+            const records = data.data || data.locations || (Array.isArray(data) ? data : []);
+
+            if (records.length > 0) {
+                // Normalize index_order on incoming records
+                records.forEach(r => {
+                    if (r.index_order !== undefined && r.index_order !== null && r.index_order !== '') {
+                        r.index_order = parseInt(r.index_order, 10);
+                    } else if (r.order !== undefined && r.order !== null && r.order !== '') {
+                        r.index_order = parseInt(r.order, 10);
+                    } else {
+                        r.index_order = 0;
+                    }
+                });
+                allRecords = [...allRecords, ...records];
+            }
+
+            hasMorePages = !!data.hasMore;
+            lastKey = data.lastKey || '';
+            if (!hasMorePages) break;
+        }
+
+        hasMore = false;
+        sortLocations(allRecords);
+
+        $('#divStory').html('');
+        await renderData(allRecords);
+
+        updateLocationBadge();
+
+        if (allRecords.length > 0) {
+            $('#totalLocationsCount').text(allRecords.length);
+            $('#locPaginationEndMessage').show();
+        }
+    } catch (e) {
+        console.error("Error loading locations:", e);
+        dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Error loading locations: ' + e.message });
+    } finally {
+        $('#locPaginationProgress').hide();
+        hideLoaderImmediate();
+        isFetching = false;
+        updateLocationBadge();
+    }
+}
+
+// Render Location Cards (same format as category_master)
+async function renderData(locations) {
+    if (!locations || locations.length === 0) return;
+
+    var cards = [];
+    for (let index = 0; index < locations.length; index++) {
+        var record = locations[index];
+        const displayOrder = (record.index_order !== undefined && record.index_order !== null && record.index_order !== '' && record.index_order !== 0)
+            ? record.index_order
+            : (index + 1);
+        const locationName = record.location || '-';
+        const locationId = record.id || '';
+
+        cards.push(`
+            <div class="storycard column" draggable="true" name="location" id="${escapeHtml(locationId)}">
+                <div class="col-cell col-order">
+                    <span class="drag-handle" title="Drag to reorder"><span class="glyphicon glyphicon-menu-hamburger"></span></span>
+                    <span class="order-badge">${escapeHtml(displayOrder)}</span>
+                </div>
+                <div class="col-cell col-title">
+                    <span class="cat-title-text" title="${escapeHtml(locationName)}">${escapeHtml(locationName)}</span>
+                </div>
+                <div class="col-cell col-slug">
+                    <code class="cat-slug-badge" title="${escapeHtml(locationId)}">${escapeHtml(locationId)}</code>
+                </div>
+                <div class="col-cell col-actions text-right">
+                    <button type="button" class="btn btn-sm btn-default btn-update-order" data-id="${escapeHtml(locationId)}" data-order="${escapeHtml(displayOrder !== '-' ? displayOrder : '0')}" title="Update display order">
+                        <span class="glyphicon glyphicon-sort"></span> Update Order
+                    </button>
+                    <span class="order-edit-group" id="order-group-${escapeHtml(locationId)}" style="display:none;">
+                        <input type="number" id="order-input-${escapeHtml(locationId)}" class="order-input form-control input-sm" value="${escapeHtml(displayOrder !== '-' ? displayOrder : '0')}" min="0">
+                        <button type="button" id="save-order-${escapeHtml(locationId)}" class="btn btn-sm btn-success btn-save-order" data-id="${escapeHtml(locationId)}">
+                            <span class="glyphicon glyphicon-ok"></span> Save
+                        </button>
+                    </span>
+                    <button type="button" class="btn btn-sm btn-info btn-edit" data-id="${escapeHtml(locationId)}" data-location="${escapeHtml(locationName)}" data-order="${escapeHtml(displayOrder !== '-' ? displayOrder : '0')}">
+                        <span class="glyphicon glyphicon-pencil"></span> Edit
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger btn-delete" data-id="${escapeHtml(locationId)}" data-location="${escapeHtml(locationName)}">
+                        <span class="glyphicon glyphicon-trash"></span> Delete
+                    </button>
+                </div>
+            </div>
+        `);
+    }
+
+    $('#divStory').html(cards.join(' '));
+
+    // Reattach drag-and-drop handlers for all cards
+    const cols = document.querySelectorAll('#divStory .column');
+    if (typeof addDnDHandlers === 'function') {
+        [].forEach.call(cols, addDnDHandlers);
+    }
+}
+
+// Save Single Location Order
+async function saveSingleOrder(id) {
+    const orderInput = $(`#order-input-${id}`);
+    const newOrder = parseInt(orderInput.val(), 10);
+    if (isNaN(newOrder) || newOrder < 0) {
+        dialog.showMessageBoxSync({ type: 'warning', buttons: ['OK'], message: 'Please enter a valid order number (0 or greater).' });
+        return;
+    }
+
+    const rec = allRecords.find(r => r.id === id);
+    if (!rec) return;
+
+    const $saveBtn = $(`#save-order-${id}`);
+    const origBtnHtml = $saveBtn.html();
+    $saveBtn.prop('disabled', true).html('<span class="glyphicon glyphicon-refresh spin-icon"></span>');
+
+    try {
+        const response = await fetch(`${LOCATIONS_API_BASE}/${encodeURIComponent(id)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id: rec.id,
+                location: rec.location,
+                index_order: newOrder
+            })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.msg || errData.error || `Failed with status ${response.status}`);
+        }
+
+        rec.index_order = newOrder;
+        $(`#order-group-${id}`).hide();
+
+        // Update DOM badge and button attribute
+        $(`.storycard#${id} .order-badge`).text(newOrder);
+        $(`.storycard#${id} .btn-update-order`).attr('data-order', newOrder);
+
+        // Re-sort in memory and re-render
+        sortLocations(allRecords);
+        await renderData(allRecords);
+
+        const options = { title: 'Order Updated', message: `Order for "${rec.location}" updated to ${newOrder} successfully!`, detail: '' };
+        dialog.showMessageBox(null, options);
+    } catch (e) {
+        console.error("Error updating single order:", e);
+        dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Failed to update order: ' + e.message });
+    } finally {
+        $saveBtn.prop('disabled', false).html(origBtnHtml);
+    }
+}
+
+// Save All Orders (via Drag & Drop or Save All Order button)
+async function saveUPre() {
+    const cardElems = $('#divStory .storycard');
+    if (!cardElems.length) return;
+
+    let changedItems = [];
+    cardElems.each(function (idx) {
+        const id = $(this).attr('id');
+        const newOrder = idx + 1;
+        $(this).find('.order-badge').text(newOrder);
+        $(this).find('.order-input').val(newOrder);
+        $(this).find('.btn-update-order').attr('data-order', newOrder);
+
+        const rec = allRecords.find(r => r.id === id);
+        if (rec) {
+            if (rec.index_order !== newOrder) {
+                rec.index_order = newOrder;
+                changedItems.push(rec);
+            }
+        }
+    });
+
+    if (changedItems.length === 0) {
+        const $btn = $('#btnSaveAllOrder');
+        const origHtml = $btn.html();
+        $btn.html('<span class="glyphicon glyphicon-ok"></span> All Up to Date!').removeClass('btn-success').addClass('btn-info');
+        setTimeout(() => {
+            $btn.html(origHtml).removeClass('btn-info').addClass('btn-success');
+        }, 1500);
+        return;
+    }
+
+    const $btn = $('#btnSaveAllOrder');
+    const origHtml = $btn.html();
+    $btn.prop('disabled', true).html('<span class="glyphicon glyphicon-refresh spin-icon"></span> Saving Orders...');
+
+    try {
+        // Save changed items to API in concurrent batches of 5
+        for (let i = 0; i < changedItems.length; i += 5) {
+            const batch = changedItems.slice(i, i + 5);
+            await Promise.all(batch.map(item => {
+                return fetch(`${LOCATIONS_API_BASE}/${encodeURIComponent(item.id)}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: item.id,
+                        location: item.location,
+                        index_order: item.index_order
+                    })
+                });
+            }));
+        }
+
+        $btn.html('<span class="glyphicon glyphicon-ok"></span> Order Saved!').removeClass('btn-success').addClass('btn-primary');
+        setTimeout(() => {
+            $btn.prop('disabled', false).html(origHtml).removeClass('btn-primary').addClass('btn-success');
+        }, 1800);
+    } catch (e) {
+        console.error("Error saving bulk order:", e);
+        $btn.prop('disabled', false).html(origHtml);
+        dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Failed to save all orders: ' + e.message });
+    }
+}
+window.saveUPre = saveUPre;
+
+// Prefill form for editing location
+function editLocation(locationName, id, order) {
+    $('#modalTitleText').text("Edit Location");
+    $('#txtLocation').val(locationName);
+    $('#txtLocationId').val(id).prop('disabled', true).prop('readonly', true);
+    $('#hdnLocationId').val(id);
+    $('#index_order').val(order !== undefined && order !== null && order !== '-' ? order : '0');
+    $('#txtLocationIdNote').text("Location ID cannot be modified during edit.");
+    $('#locationModal').modal('show');
+    focusInput('txtLocation');
+}
+
+// Delete location
+async function deleteLocation(id, name) {
+    const locDisplayName = name || id;
+    if (confirm(`Are you sure you want to delete location "${locDisplayName}"?`)) {
+        showLoaderImmediate();
         try {
             const url = `${LOCATIONS_API_BASE}/${encodeURIComponent(id)}`;
             const response = await fetch(url, { method: "DELETE" });
+            const result = await response.json().catch(() => ({}));
+
             if (response.ok) {
                 dialog.showMessageBoxSync({ type: 'info', buttons: ['OK'], message: 'Location deleted successfully' });
-                locationMasterList();
+                await locationMasterList();
             } else {
-                const data = await response.json();
-                dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Error deleting: ' + (data.msg || 'Unknown error') });
+                dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Error deleting location: ' + (result.msg || result.error || 'Unknown error') });
             }
         } catch (e) {
             console.error("Delete error:", e);
+            dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Failed to delete location' });
         } finally {
-            $('body').removeClass('loaded');
+            hideLoaderImmediate();
         }
     }
 }
 
-
-
-$("#btnSave").click(function () {
+// Handle Save Location (Add New or Edit)
+function handleSaveLocation() {
     validation(async function (cansave) {
         if (cansave.cansave) {
-            $('body').addClass('loaded');
+            showLoaderImmediate();
             try {
-                const isEdit = $("#hdnLocationId").val() != "";
+                const isEdit = $("#hdnLocationId").val() !== "";
                 const method = isEdit ? "PUT" : "POST";
-                const url = isEdit 
-                    ? `${LOCATIONS_API_BASE}/${encodeURIComponent($("#hdnLocationId").val())}`
+                const idParam = isEdit ? $("#hdnLocationId").val() : cansave.item.id;
+                const url = isEdit
+                    ? `${LOCATIONS_API_BASE}/${encodeURIComponent(idParam)}`
                     : LOCATIONS_API_BASE;
 
                 const response = await fetch(url, {
@@ -178,84 +501,80 @@ $("#btnSave").click(function () {
                     body: JSON.stringify(cansave.item)
                 });
 
+                const resJson = await response.json().catch(() => ({}));
+
                 if (response.ok) {
-                    const options = { title: '', message: `Location ${isEdit ? 'Updated' : 'Saved'} successfully`, detail: '' };
+                    const options = {
+                        title: 'Success',
+                        message: `Location ${isEdit ? 'updated' : 'saved'} successfully!`,
+                        detail: ''
+                    };
                     dialog.showMessageBox(null, options);
                     $('#locationModal').modal('hide');
-                    locationMasterList(); // Refresh the list
+                    $('#txtLocation').val('');
+                    $('#txtLocationId').val('');
+                    $('#hdnLocationId').val('');
+                    $('#index_order').val('0');
+                    await locationMasterList();
                 } else {
-                    const data = await response.json();
-                    const errMsg = data.error || data.msg || "Unknown error";
-                    dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Error saving: ' + errMsg });
-                    focusLocationInput();
+                    const errMsg = resJson.error || resJson.msg || resJson.message || "Unknown error";
+                    dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Error saving location: ' + errMsg });
+                    focusInput('txtLocation');
                 }
             } catch (e) {
                 console.error("Save error:", e);
-                dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Failed to save location' });
-                focusLocationInput();
+                dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: 'Failed to save location: ' + e.message });
+                focusInput('txtLocation');
             } finally {
-                $('body').addClass('loaded');
+                hideLoaderImmediate();
             }
         } else {
             dialog.showMessageBoxSync({ type: 'error', buttons: ['OK'], message: cansave.msg });
-            focusLocationInput();
+            focusInput('txtLocation');
         }
     });
-});
-function focusLocationInput() {
-    setTimeout(function() {
-        var el = document.getElementById('txtLocation');
-        if (el) { el.focus(); el.focus(); }
-    }, 100);
 }
 
-$("#btnAddLocation").click(function () {
-    $('#locationModal #txtLocation');
-    $("#hdnLocationId").val('');
-    $('#locationModal').find('.modal-title').text("Add New Location");
-    focusLocationInput();
-});
-
-$("#btnClose").click(function () {
-    $('#locationModal').modal('hide');
-});
-
-
-function editLocation(location, id) {
-    $('#locationModal').find('.modal-title').text("Edit Location");
-    $('#locationModal').find('#txtLocation').val(location);
-    $('#locationModal').find('#hdnLocationId').val(id);
-    focusLocationInput();
-}
+// Input validation
 function validation(cb) {
     var cansave = true;
     var msg = "";
-    var item = {
-        "id": $('#locationModal #txtLocation').val().toLowerCase().replace(/ /g, "_"),
-        "location": $.trim($('#locationModal').find('#txtLocation').val())
-    };
-    if (item["location"] == "") {
-        msg = "Please Enter Locatoin";
+
+    const locName = $.trim($('#txtLocation').val());
+    let locId = $.trim($('#txtLocationId').val());
+    const isEdit = $("#hdnLocationId").val() !== "";
+
+    if (locName === "") {
+        msg = "Please Enter Location Name";
         cansave = false;
+    } else if (!isEdit && locId === "") {
+        locId = locName.toLowerCase().replace(/[^a-z0-9\s_]/gi, '').replace(/\s+/g, '_');
+        $('#txtLocationId').val(locId);
     }
-    var result = { "cansave": cansave, "msg": msg, "item": item };
-    cb(result);
+
+    if (cansave && !isEdit) {
+        const exists = allRecords.some(r => r.id.toLowerCase() === locId.toLowerCase());
+        if (exists) {
+            msg = `A location with ID "${locId}" already exists!`;
+            cansave = false;
+        }
+    }
+
+    const orderRaw = $('#index_order').val();
+    const parsedOrder = (orderRaw !== "" && !isNaN(parseInt(orderRaw, 10)))
+        ? parseInt(orderRaw, 10)
+        : 0;
+
+    const item = {
+        id: isEdit ? $("#hdnLocationId").val() : locId,
+        location: locName,
+        index_order: parsedOrder
+    };
+
+    cb({ cansave: cansave, msg: msg, item: item });
 }
 
 //#region Search Location
-$("#btnSearch").click(function () {
-    SearchOnLocation();
-});
-$("#btnClearSearch").click(function () {
-    ClearSearchOnLocation();
-});
-$('#txtSearchLocation').on('keyup', function () {
-    const query = $('#txtSearchLocation').val().trim();
-    if (query.length >= 4) {
-        SearchOnLocation();
-    }
-});
-
 async function SearchOnLocation() {
     let query = $('#txtSearchLocation').val().trim().toLowerCase();
     let filtered = [];
@@ -269,30 +588,37 @@ async function SearchOnLocation() {
         filtered = allRecords;
     }
 
-    let header = `
-        <div class="storycardheader col-md-12 row">
-            <div class="col-md-7"><h4>Location</h4></div>
-            <div class="col-md-2"></div>
-            <div class="col-md-3"></div>
-            <hr>
-        </div>`;
-    $('#divStory').html(header);
-
-    renderData(filtered);
+    if (filtered.length > 0) {
+        $('#locationTableHeader').show();
+        $('#divStory').html('');
+        await renderData(filtered);
+        $('#locationCountBadge').text(`${filtered.length} result${filtered.length === 1 ? '' : 's'}`).show();
+        $('#locPaginationProgress').hide();
+        $('#locPaginationEndMessage').hide();
+    } else {
+        $('#locationTableHeader').hide();
+        $('#locationCountBadge').hide();
+        $('#divStory').html(`
+            <div class="empty-state-card">
+                <div class="empty-state-icon"><span class="glyphicon glyphicon-search"></span></div>
+                <div class="empty-state-title">No Locations Found</div>
+                <div class="empty-state-desc">No location matched "<strong>${escapeHtml(query)}</strong>".</div>
+            </div>
+        `);
+        $('#locPaginationProgress').hide();
+        $('#locPaginationEndMessage').hide();
+    }
 }
 
 async function ClearSearchOnLocation() {
     $('#txtSearchLocation').val('');
-    
-    let header = `
-        <div class="storycardheader col-md-12 row">
-            <div class="col-md-7"><h4>Location</h4></div>
-            <div class="col-md-2"></div>
-            <div class="col-md-3"></div>
-            <hr>
-        </div>`;
-    $('#divStory').html(header);
-
-    renderData(allRecords);
+    $('#locationTableHeader').show();
+    $('#divStory').html('');
+    await renderData(allRecords);
+    updateLocationBadge();
+    if (allRecords.length > 0) {
+        $('#totalLocationsCount').text(allRecords.length);
+        $('#locPaginationEndMessage').show();
+    }
 }
 //#endregion
