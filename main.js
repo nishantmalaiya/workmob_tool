@@ -613,7 +613,7 @@ app.on("ready", function () {
             icon: appIconPath,
             width: 1300,
             height: 850,
-            minWidth: 1024,
+            minWidth: 512,
             minHeight: 700,
             backgroundColor: global.sharedObj.themeColor || "#8178FF",
             autoHideMenuBar: true,
@@ -652,7 +652,8 @@ app.on("ready", function () {
         });
 
         child.once("ready-to-show", () => {
-            child.webContents.toggleDevTools();
+            // DevTools is hidden by default; user can toggle via Developer Tools button or F12
+            // child.webContents.toggleDevTools();
         });
 
         // Fire after document + scripts load so ipcRenderer.on("receiveSlug") is registered.

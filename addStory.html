@@ -342,6 +342,7 @@
             align-items: center;
             justify-content: center;
             gap: 12px;
+            flex-wrap: wrap;
         }
 
         .bottom-action-card .btn {
@@ -440,6 +441,12 @@
                         <span id="hname">Story Details</span>
                     </h3>
                     <p class="page-subtitle" style="margin-top: 4px;">Configure story metadata, social media links, multi-language content, and publication channels.</p>
+                </div>
+                <div class="header-dev-actions" style="display: none; align-items: center; gap: 8px;">
+                    <button type="button" id="btnToggleDevTools" class="btn btn-default btn-sm" title="Toggle Developer Tools (F12)" style="font-weight: 600; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #475569; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; cursor: pointer; transition: all 0.2s ease;">
+                        <span class="glyphicon glyphicon-wrench" style="color: #64748b;"></span>
+                        <span id="btnToggleDevToolsText">Developer Tools</span>
+                    </button>
                 </div>
             </div>
         </div>

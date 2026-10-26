@@ -1,4 +1,4 @@
-var remote = require("@electron/remote");
+﻿var remote = require("@electron/remote");
 // const { app } = require("electron");
 // app.commandLine.appendSwitch ("disable-http-cache");
 const fs = require("fs");
@@ -16,22 +16,144 @@ var type = remote.getGlobal("sharedObj").currentStory;
 let editSlug = "";
 let editItemId = "";
 
-// Global keyboard shortcut to toggle DevTools (F12 or Ctrl+Shift+I)
-window.addEventListener("keydown", function (e) {
-    if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "i"))) {
-        try {
-            const win = remote.getCurrentWindow();
-            if (win && win.webContents) {
-                if (win.webContents.isDevToolsOpened()) {
-                    win.webContents.closeDevTools();
-                } else {
-                    win.webContents.openDevTools({ mode: "detach" });
-                }
+// Set window minimum width to half of current (512px instead of 1024px)
+try {
+    const currentWin = remote.getCurrentWindow();
+    if (currentWin && typeof currentWin.setMinimumSize === "function") {
+        const [curMinWidth, curMinHeight] = currentWin.getMinimumSize();
+        const newMinWidth = (curMinWidth > 0 && curMinWidth <= 600) ? curMinWidth : 512;
+        currentWin.setMinimumSize(newMinWidth, curMinHeight || 700);
+    }
+} catch (e) {
+    console.error("Error setting window minimum size:", e);
+}
+
+// Hide developer tools by default and provide toggle functionality
+function hideDevToolsByDefault() {
+    try {
+        const win = remote.getCurrentWindow();
+        if (win && win.webContents && win.webContents.isDevToolsOpened()) {
+            win.webContents.closeDevTools();
+        }
+    } catch (err) {
+        console.error("Error hiding DevTools by default:", err);
+    }
+}
+
+// Ensure DevTools starts hidden/closed by default
+hideDevToolsByDefault();
+setTimeout(hideDevToolsByDefault, 150);
+setTimeout(hideDevToolsByDefault, 600);
+
+function toggleDevTools() {
+    try {
+        const win = remote.getCurrentWindow();
+        if (win && win.webContents) {
+            if (win.webContents.isDevToolsOpened()) {
+                win.webContents.closeDevTools();
+                updateDevToolsButtonState(false);
+            } else {
+                win.webContents.openDevTools({ mode: "detach" });
+                updateDevToolsButtonState(true);
             }
-        } catch (err) {
-            console.error("Error toggling DevTools:", err);
+        }
+    } catch (err) {
+        console.error("Error toggling DevTools:", err);
+    }
+}
+
+function updateDevToolsButtonState(isOpen) {
+    const $btn = $("#btnToggleDevTools");
+    const $container = $(".header-dev-actions");
+    if ($btn.length > 0) {
+        if (isOpen) {
+            $btn.addClass("btn-primary").removeClass("btn-default");
+            $("#btnToggleDevToolsText").text("Close DevTools");
+            $container.css("display", "inline-flex").show();
+            $btn.show();
+        } else {
+            $btn.addClass("btn-default").removeClass("btn-primary");
+            $("#btnToggleDevToolsText").text("Developer Tools");
+            // Default hide developer options when DevTools is closed
+            $container.hide();
+            $btn.hide();
         }
     }
+}
+
+function toggleDevOptionsVisibility() {
+    const $container = $(".header-dev-actions");
+    const $btn = $("#btnToggleDevTools");
+    if ($container.is(":visible")) {
+        $container.hide();
+        $btn.hide();
+    } else {
+        $container.css("display", "inline-flex").show();
+        $btn.show();
+    }
+}
+
+// Global keyboard shortcut: F12 or Ctrl+Shift+I toggles DevTools; Ctrl+Shift+D toggles Developer Options visibility
+window.addEventListener("keydown", function (e) {
+    if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "i"))) {
+        toggleDevTools();
+    } else if (e.ctrlKey && e.shiftKey && (e.key === "D" || e.key === "d")) {
+        toggleDevOptionsVisibility();
+    }
+});
+
+// Double-click page title to toggle Developer Options visibility
+$(document).on("dblclick", "#hname", function () {
+    toggleDevOptionsVisibility();
+});
+
+// Sync button state on window DevTools events
+try {
+    const win = remote.getCurrentWindow();
+    if (win && win.webContents) {
+        win.webContents.on("devtools-opened", () => updateDevToolsButtonState(true));
+        win.webContents.on("devtools-closed", () => updateDevToolsButtonState(false));
+    }
+} catch (err) {}
+
+// Ensure Developer Tools button exists in DOM and wire click event
+function ensureDevToolsButtonExists() {
+    if ($("#btnToggleDevTools").length === 0) {
+        const $headerRow = $(".dashboard-card:first .row:first");
+        if ($headerRow.length > 0) {
+            $headerRow.append(
+                '<div class="header-dev-actions" style="display: none; align-items: center; gap: 8px;">' +
+                '<button type="button" id="btnToggleDevTools" class="btn btn-default btn-sm" title="Toggle Developer Tools (F12)" style="font-weight: 600; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #475569; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; cursor: pointer; transition: all 0.2s ease;">' +
+                '<span class="glyphicon glyphicon-wrench" style="color: #64748b;"></span> ' +
+                '<span id="btnToggleDevToolsText">Developer Tools</span>' +
+                '</button>' +
+                '</div>'
+            );
+        }
+    }
+
+    try {
+        const win = remote.getCurrentWindow();
+        if (win && win.webContents) {
+            updateDevToolsButtonState(win.webContents.isDevToolsOpened());
+        } else {
+            $(".header-dev-actions").hide();
+            $("#btnToggleDevTools").hide();
+        }
+    } catch (e) {
+        $(".header-dev-actions").hide();
+        $("#btnToggleDevTools").hide();
+    }
+}
+
+$(document).ready(function () {
+    ensureDevToolsButtonExists();
+});
+ensureDevToolsButtonExists();
+
+$(document).on("click", "#btnToggleDevTools", function (e) {
+    e.preventDefault();
+    toggleDevTools();
 });
 
 function prefillStoryTestData() {
@@ -67,9 +189,14 @@ function prefillStoryTestData() {
             $("#ddl_location")[0].selectize.setValue("nolocation");
         }
         if ($("#ddl_organisation").length > 0 && typeof $("#ddl_organisation").multipleSelect === "function") {
-            var firstOrg = $("#ddl_organisation option:first").val();
-            if (firstOrg) {
-                $("#ddl_organisation").multipleSelect("setSelects", [firstOrg]);
+            var noOrg = getNoOrgOptionValue();
+            if (noOrg) {
+                $("#ddl_organisation").multipleSelect("setSelects", [noOrg]);
+            } else {
+                var firstOrg = $("#ddl_organisation option:first").val();
+                if (firstOrg) {
+                    $("#ddl_organisation").multipleSelect("setSelects", [firstOrg]);
+                }
             }
         } else if ($("#ddl_organisation")[0] && $("#ddl_organisation")[0].selectize) {
             $("#ddl_organisation")[0].selectize.setValue("noorganisation");
@@ -162,6 +289,38 @@ function resolveOrganisationId(orgInput) {
     return withUnderscores;
 }
 
+function getNoOrgOptionValue() {
+    let noOrgVal = "";
+    if ($("#divJson #ddl_organisation option").length > 0) {
+        $("#divJson #ddl_organisation option").each(function () {
+            const val = String($(this).val() || "").trim();
+            const text = String($(this).text() || "").trim();
+            if (text.toUpperCase() === "NOORG" || val.toUpperCase() === "NOORG" || val.toLowerCase() === "noorg") {
+                noOrgVal = val;
+                return false;
+            }
+        });
+    }
+
+    if (!noOrgVal && typeof _orgNameToIdMap !== "undefined" && _orgNameToIdMap) {
+        if (_orgNameToIdMap["noorg"]) noOrgVal = _orgNameToIdMap["noorg"];
+        else if (_orgNameToIdMap["no_organisation"]) noOrgVal = _orgNameToIdMap["no_organisation"];
+        else if (_orgNameToIdMap["noorganisation"]) noOrgVal = _orgNameToIdMap["noorganisation"];
+    }
+
+    if (!noOrgVal && typeof _organisationMasterList !== "undefined" && Array.isArray(_organisationMasterList)) {
+        const found = _organisationMasterList.find(o => 
+            (o.Organisation && String(o.Organisation).trim().toUpperCase() === "NOORG") ||
+            (o.id && String(o.id).trim().toUpperCase() === "NOORG") ||
+            (o.Organisation && String(o.Organisation).trim().toLowerCase() === "noorg")
+        );
+        if (found) {
+            noOrgVal = found.id ? String(found.id).trim() : String(found.Organisation).toLowerCase().trim().replace(/ /g, "_");
+        }
+    }
+
+    return noOrgVal || "noorg";
+}
 
 const MASTER_TAG_API_BASE = `${API_BASE_URL}/master_tag`;
 const STORY_DETAIL_API_BASE = `${API_BASE_URL}/${(activePathS3["story-detail"] || "stories").replace(/\//g, "").replace(".json", "")}`;
@@ -800,9 +959,9 @@ var addStory = (async function () {
                 _orgNameToIdMap[orgName.toLowerCase().replace(/ /g, "_")] = orgId;
                 element.push('<option value="' + orgId + '">' + orgName + " </option>");
             }
-            $("#divJson #ddl_organisation").html(element.join(" "));
             $("#divJson #ddl_organisation").attr("multiple", "multiple");
             $("#divJson #ddl_organisation").addClass("multiple-select");
+            $("#divJson #ddl_organisation").html(element.join(" "));
             $("#divJson #ddl_organisation").multipleSelect({
                 filter: true,
                 width: "100%",
@@ -818,8 +977,24 @@ var addStory = (async function () {
             var selectedOrgIds = rawOrgs.map(resolveOrganisationId).filter(Boolean);
             if (selectedOrgIds.length > 0) {
                 $("#divJson #ddl_organisation").val(selectedOrgIds);
-                $("#divJson #ddl_organisation").multipleSelect("refresh");
+                if (typeof $("#divJson #ddl_organisation").multipleSelect === "function") {
+                    $("#divJson #ddl_organisation").multipleSelect("setSelects", selectedOrgIds);
+                } else {
+                    $("#divJson #ddl_organisation").multipleSelect("refresh");
+                }
                 previousOrganisation = [...selectedOrgIds];
+            } else {
+                var noOrgVal = getNoOrgOptionValue();
+                if (noOrgVal) {
+                    $("#divJson #ddl_organisation").val([noOrgVal]);
+                    if (typeof $("#divJson #ddl_organisation").multipleSelect === "function") {
+                        $("#divJson #ddl_organisation").multipleSelect("setSelects", [noOrgVal]);
+                    } else {
+                        $("#divJson #ddl_organisation").multipleSelect("refresh");
+                    }
+                    tmpOrganisation = [noOrgVal];
+                    previousOrganisation = [...tmpOrganisation];
+                }
             }
         } catch (error) {
             console.log("Error fetching organisations:", error);
@@ -884,12 +1059,13 @@ var addStory = (async function () {
                     '" class="form-control">'
                 );
             } else if (object.type == "select") {
+                var multipleAttr = (object.name === "organisation" || object.name === "ddlcategory" || object.name === "sub_categories") ? ' multiple="multiple"' : '';
                 element.push(
                     '<select id="ddl_' +
                     object.name +
                     '" name="' +
                     object.name +
-                    '" value="" class="form-control"></select>'
+                    '"' + multipleAttr + ' value="" class="form-control"></select>'
                 );
             } else if (object.type == "checkbox") {
                 element.push("<br><label>" + object.label);
@@ -1913,22 +2089,6 @@ var addStory = (async function () {
     //                 }
     //                 $("#divJson #ddl_ddlcategory").val(master_categories);
     //                 $("#divJson #ddl_ddlcategory").multipleSelect("refresh");
-
-                    // Handle organisations
-                    var master_organisations = [];
-                    if (JSON_Obj["organisation"] != null && JSON_Obj["organisation"] !== "" && JSON_Obj["organisation"] !== "NoOrganisation") {
-                        var rawOrgs = Array.isArray(JSON_Obj["organisation"]) ? JSON_Obj["organisation"] : String(JSON_Obj["organisation"]).split(",");
-                        master_organisations = rawOrgs.map(resolveOrganisationId).filter(Boolean);
-                        previousOrganisation = [...master_organisations];
-                    } else {
-                        previousOrganisation = [];
-                        master_organisations = [];
-                    }
-                    tmpOrganisation = master_organisations;
-                    $("#divJson #ddl_organisation").val(master_organisations);
-                    if ($("#divJson #ddl_organisation").hasClass("multiple-select")) {
-                        $("#divJson #ddl_organisation").multipleSelect("refresh");
-                    }
     //                 $("#ddlLanguage").val("English");
     //                 var fullstory = JSON_Obj["fullStory"];
     //                 var _html = $.parseHTML(fullstory);
@@ -2008,7 +2168,8 @@ var addStory = (async function () {
                                     tmpOrganisation = splitOrgs.map(s => resolveOrganisationId(s) || String(s).trim().toLowerCase().replace(/ /g, "_")).filter(Boolean);
                                     previousOrganisation = [...tmpOrganisation];
                                 } else {
-                                    tmpOrganisation = [];
+                                    var noOrgVal = getNoOrgOptionValue();
+                                    tmpOrganisation = noOrgVal ? [noOrgVal] : [];
                                     previousOrganisation = [];
                                 }
                                 GetOrganisationList();
@@ -2044,7 +2205,26 @@ var addStory = (async function () {
                     $("#divJson #ddl_ddlcategory").val(master_categories);
                     $("#divJson #ddl_ddlcategory").multipleSelect("refresh");
 
-
+                    // Handle organisations
+                    var master_organisations = [];
+                    if (JSON_Obj["organisation"] != null && JSON_Obj["organisation"] !== "" && JSON_Obj["organisation"] !== "NoOrganisation") {
+                        var rawOrgs = Array.isArray(JSON_Obj["organisation"]) ? JSON_Obj["organisation"] : String(JSON_Obj["organisation"]).split(",");
+                        master_organisations = rawOrgs.map(s => resolveOrganisationId(s) || String(s).trim().toLowerCase().replace(/ /g, "_")).filter(Boolean);
+                        previousOrganisation = [...master_organisations];
+                    } else {
+                        var noOrgVal = getNoOrgOptionValue();
+                        master_organisations = noOrgVal ? [noOrgVal] : [];
+                        previousOrganisation = [];
+                    }
+                    tmpOrganisation = master_organisations;
+                    $("#divJson #ddl_organisation").val(master_organisations);
+                    if ($("#divJson #ddl_organisation").hasClass("multiple-select")) {
+                        if (typeof $("#divJson #ddl_organisation").multipleSelect === "function") {
+                            $("#divJson #ddl_organisation").multipleSelect("setSelects", master_organisations);
+                        } else {
+                            $("#divJson #ddl_organisation").multipleSelect("refresh");
+                        }
+                    }
 
                     // Render stories
                     $("#ddlLanguage").val("English");
