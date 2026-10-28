@@ -491,7 +491,7 @@
                     </div>
                     <div class="language-switcher-group">
                         <label for="ddlLanguage">Language:</label>
-                        <select id="ddlLanguage">
+                        <select id="ddlLanguage" onchange="if(typeof switchStoryLanguage==='function')switchStoryLanguage(this.value)">
                             <option value="English">English</option>
                             <option value="Hindi">Hindi</option>
                         </select>

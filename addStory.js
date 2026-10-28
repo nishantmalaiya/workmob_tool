@@ -578,7 +578,24 @@ $("body").on("change", "#ddl_ddlcategory", async function () {
 });
 
 
+function switchStoryLanguage(lang) {
+    var selectedLang = lang || $("#ddlLanguage").val() || "English";
+    if (selectedLang === "Hindi") {
+        $("#divExtraField").hide();
+        $("#divExtraFieldHindi").show();
+    } else {
+        $("#divExtraField").show();
+        $("#divExtraFieldHindi").hide();
+    }
+}
+window.switchStoryLanguage = switchStoryLanguage;
+
 $("#divExtraFieldHindi").hide();
+
+$(document).on("change input", "#ddlLanguage", function () {
+    switchStoryLanguage($(this).val());
+});
+
 var addStory = (async function () {
 
     ipcRenderer.on("receiveSlug", async (event, arg) => {
@@ -2226,17 +2243,25 @@ var addStory = (async function () {
                         }
                     }
 
-                    // Render stories
-                    $("#ddlLanguage").val("English");
-                    var fullstory = JSON_Obj["fullStory"];
-                    var _html = $.parseHTML(fullstory);
-                    RenderFullStoryElement(_html);
+                    // Render stories cleanly into their respective containers
+                    $("#divExtraField").empty();
+                    $("#divExtraFieldHindi").empty();
 
-                    $("#ddlLanguage").val("Hindi");
-                    fullstory = JSON_Obj["fullStory_hindi"];
-                    _html = $.parseHTML(fullstory);
-                    RenderFullStoryElement(_html);
-                    $("#ddlLanguage").val("English");
+                    var fullstory = JSON_Obj["fullStory"] || "";
+                    if (fullstory) {
+                        var _html = $.parseHTML(fullstory);
+                        RenderFullStoryElement(_html, "divExtraField");
+                    }
+
+                    var fullstoryHindi = JSON_Obj["fullStory_hindi"] || "";
+                    if (fullstoryHindi) {
+                        var _htmlHindi = $.parseHTML(fullstoryHindi);
+                        RenderFullStoryElement(_htmlHindi, "divExtraFieldHindi");
+                    }
+
+                    // Sync view with current language dropdown selection
+                    var currentLang = $("#ddlLanguage").val() || "English";
+                    switchStoryLanguage(currentLang);
 
                     // Set checkboxes
                     $("#chk_show_contact").prop('checked', JSON_Obj["show_contact"] === true || JSON_Obj["show_contact"] === 1);
@@ -2255,61 +2280,60 @@ var addStory = (async function () {
         });
     }
 
-    function RenderFullStoryElement(_html) {
+    function RenderFullStoryElement(_html, targetDiv) {
+        if (!_html) return;
         nodeNames = [];
         $.each(_html, function (i, el) {
             var txt = el.textContent ? $.trim(el.textContent.replace(/\u00A0/g, ' ')) : "";
             switch (el.nodeName) {
                 case "H3":
                     if (txt !== "") {
-                        AddField("Heading", $(el).html());
+                        AddField("Heading", $(el).html(), targetDiv);
                     }
                     break;
                 case "DIV":
                 case "P":
                     if (txt !== "") {
                         if ($(el).find("strong").length == 0) {
-                            AddField("Paragraph", $(el).html());
+                            AddField("Paragraph", $(el).html(), targetDiv);
                         } else {
-                            AddField("Paragraph bold", $(el).html());
+                            AddField("Paragraph bold", $(el).html(), targetDiv);
                         }
                     }
                     break;
                 case "BLOCKQUOTE":
                     if (txt !== "") {
                         if ($(el).hasClass("green")) {
-                            AddField("Quote green", $(el).html());
+                            AddField("Quote green", $(el).html(), targetDiv);
                         } else if ($(el).hasClass("darkGreen")) {
-                            AddField("Quote dark green", $(el).html());
+                            AddField("Quote dark green", $(el).html(), targetDiv);
                         } else if ($(el).hasClass("lightGreen")) {
-                            AddField("Quote light green", $(el).html());
+                            AddField("Quote light green", $(el).html(), targetDiv);
                         } else {
-                            AddField("Quote", $(el).html());
+                            AddField("Quote", $(el).html(), targetDiv);
                         }
                     }
                     break;
                 case "UL":
                     if (txt !== "") {
-                        console.log(el.nodeName, el);
-                        AddField("Bulleted list", $(el).html());
+                        AddField("Bulleted list", $(el).html(), targetDiv);
                     }
                     break;
                 case "SPAN":
-                    AddField("Image Url(Left)", $(el).find("img").attr("src"));
+                    AddField("Image Url(Left)", $(el).find("img").attr("src"), targetDiv);
                     break;
                 case "VIDEO":
-                    AddField("Video", $(el).attr("src"));
+                    AddField("Video", $(el).attr("src"), targetDiv);
                     break;
                 case "IMG":
-                    AddField("Image Url(Right)", $(el).attr("src"));
+                    AddField("Image Url(Right)", $(el).attr("src"), targetDiv);
                     break;
                 default:
-                    console.log(el.nodeName, $(el).text());
                     break;
             }
         });
     }
-    function AddField(type, text) {
+    function AddField(type, text, targetDiv) {
         if (!type) return;
         type = type.trim();
         const typeMap = {
@@ -2474,47 +2498,41 @@ var addStory = (async function () {
         element.push('<div class="bg-info col-md-12" style="height: 3px; background-color: #38bdf8; margin: 12px 0 4px 0; border-radius: 2px; clear: both; display: block; padding: 0;"></div></div>');
         element.join(" ");
 
-        var divName = "";
-        if ($("#ddlLanguage").val() == "English") {
-            divName = "divExtraField";
-        } else {
-            divName = "divExtraFieldHindi";
+        var divName = targetDiv;
+        if (!divName) {
+            divName = ($("#ddlLanguage").val() == "Hindi") ? "divExtraFieldHindi" : "divExtraField";
         }
 
-        $("#" + divName + "").append(element.join(" "));
+        $("#" + divName).append(element.join(" "));
         var cols = $("#" + divName + " .column");
         [].forEach.call(cols, addDnDHandlers);
-        setTimeout(function () {
-            var $newEditor = $("#" + divName + " .customeEditor:last");
-            if ($newEditor.length > 0) {
-                var el = $newEditor[0];
-                el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                el.focus();
-                try {
-                    var range = document.createRange();
-                    range.selectNodeContents(el);
-                    range.collapse(false);
-                    var sel = window.getSelection();
-                    sel.removeAllRanges();
-                    sel.addRange(range);
-                } catch (e) {
-                    console.log("Error positioning cursor:", e);
+        if (!targetDiv) {
+            setTimeout(function () {
+                var $newEditor = $("#" + divName + " .customeEditor:last");
+                if ($newEditor.length > 0) {
+                    var el = $newEditor[0];
+                    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                    el.focus();
+                    try {
+                        var range = document.createRange();
+                        range.selectNodeContents(el);
+                        range.collapse(false);
+                        var sel = window.getSelection();
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                    } catch (e) {
+                        console.log("Error positioning cursor:", e);
+                    }
                 }
-            }
-        }, 50);
+            }, 50);
+        }
     }
 
 
     function saveUPre() { }
 
-    $("#ddlLanguage").on("change", function () {
-        if ($(this).val() == "English") {
-            $("#divExtraField").show();
-            $("#divExtraFieldHindi").hide();
-        } else {
-            $("#divExtraField").hide();
-            $("#divExtraFieldHindi").show();
-        }
+    $("#ddlLanguage").on("change input", function () {
+        switchStoryLanguage($(this).val());
     });
 
     async function CheckSlugStory(slug) {
